@@ -30,6 +30,8 @@
         {% for platform in fwinfo.platforms %}
           {% if platform.name == "All" %}
             Linux, MacOS X, Windows
+          {% elif platform.name == "UNKNOWN" %}
+            All the platforms supported by Qt
           {% else %}
             {{ platform.name }}{% if not loop.last %}, {% endif %}
           {% endif %}
@@ -41,12 +43,14 @@
       <dd><a href="https://mail.kde.org/mailman/listinfo/kde-frameworks-devel">Mailing list</a></dd>
       <dd><a href="https://projects.kde.org/projects/frameworks/{{ fwinfo.fancyname|lower }}/repository">Git repository</a></dd>
 
+{% if fwinfo.libraries|default([0])|count != 0 %}
     <dt>Use with <a href="https://techbase.kde.org/Development/Tutorials/CMake">CMake</a></dt>
       <dd><pre class="fragment">find_package(KF5{{ fwinfo.cmakename }})
 target_link_libraries(yourapp KF5::{{ fwinfo.libraries|default([fwinfo.cmakename])|join(' KF5::') }})</pre></dd>
 
     <dt>Use with QMake</dt>
       <dd><pre class="fragment">QT += {{ fwinfo.libraries|default([fwinfo.fancyname])|join(' ') }}</pre></dd>
+{% endif %}
 
     <dt>Clone URL</dt>
       <dd><pre class="fragment">git clone git://anongit.kde.org/{{ fwinfo.fancyname|lower }}.git</pre></dd>

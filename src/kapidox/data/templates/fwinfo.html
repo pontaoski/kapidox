@@ -1,0 +1,46 @@
+<div class="menu_box">
+  <div class="menutitle">
+    <div>
+      <h2>{{ dox.projectname }} : {{ fwinfo.description }}</h2>
+    </div>
+  </div>
+
+  <p style="text-align: center"><a style="font-weight: bold;" href="http://inqlude.org/libraries/{{ fwinfo.fancyname|lower }}.html">Download on <span style="color: black;">#In<span style="color: #80C342;">q</span>lude</span></a></p>
+
+  <dl>
+    <dt>Maintainer</dt>
+    {% if not fwinfo.maintainer %}
+      <dd><a href="mailto:kde-devel@kde.org">The KDE Community</a></dd>
+    {% elif "@" in fwinfo.maintainer %}
+      <dd>{{ fwinfo.maintainer }}</dd>
+    {% else %}
+      <dd>{{ fwinfo.maintainer }}@kde.org</dd>
+    {% endif %}
+
+    <dt>Dependencies</dt>
+      {% if fwinfo.tier >= 2 %}
+      <dd><a href="http://qt-project.org/">Qt 5</a></dd>
+      <dd><a href="http://api.kde.org/frameworks-api/frameworks5-apidocs/#fw-tier{{ fwinfo.tier - 1 }}">Other frameworks</a></dd>
+      {% else %}
+      <dd><a href="http://qt-project.org/">Only Qt 5</a></dd>
+      {% endif %}
+
+    <dt>Supported platforms</dt>
+      <dd>
+        {% for platform in fwinfo.platforms %}
+          {% if platform.name == "All" %}
+            Linux, MacOS X, Windows
+          {% else %}
+            {{ platform.name }}{% if not loop.last %}, {% endif %}
+          {% endif %}
+        {% endfor %}
+      </dd>
+
+    <dt>Use with <a href="https://techbase.kde.org/Development/Tutorials/CMake">CMake</a></dt>
+      <dd><pre class="fragment">find_package(KF5{{ fwinfo.fancyname|replace("K", "", 1) }} CONFIG)
+target_link_libraries(yourapp{% for lib in fwinfo.libraries|default([fwinfo.fancyname]) %} KF5::{{ lib|replace("K", "", 1) }}{% endfor %})</pre></dd>
+
+    <dt>Use with QMake</dt>
+      <dd><pre class="fragment">QT += {{ fwinfo.libraries|default([fwinfo.fancyname])|join(' ') }}</pre></dd>
+  </dl>
+</div>

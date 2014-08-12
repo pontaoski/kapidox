@@ -245,6 +245,7 @@ def create_fw_context(args, fwinfo, tagfiles):
             # Names
             modulename=fwinfo['modulename'],
             fancyname=fwinfo['fancyname'],
+            fwinfo=fwinfo,
             # KApidox files
             resourcedir='../..',
             # Input

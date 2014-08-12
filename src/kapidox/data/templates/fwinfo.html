@@ -37,8 +37,8 @@
       </dd>
 
     <dt>Use with <a href="https://techbase.kde.org/Development/Tutorials/CMake">CMake</a></dt>
-      <dd><pre class="fragment">find_package(KF5{{ fwinfo.fancyname|replace("K", "", 1) }} CONFIG)
-target_link_libraries(yourapp{% for lib in fwinfo.libraries|default([fwinfo.fancyname]) %} KF5::{{ lib|replace("K", "", 1) }}{% endfor %})</pre></dd>
+      <dd><pre class="fragment">find_package(KF5{{ fwinfo.cmakename }})
+target_link_libraries(yourapp KF5::{{ fwinfo.libraries|default([fwinfo.cmakename])|join(' KF5::') }})</pre></dd>
 
     <dt>Use with QMake</dt>
       <dd><pre class="fragment">QT += {{ fwinfo.libraries|default([fwinfo.fancyname])|join(' ') }}</pre></dd>

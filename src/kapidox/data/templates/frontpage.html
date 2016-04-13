@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% macro write_toc(title, lst) %}
+  <li>{{ title }}
+    <ul>
+      {% for tier, frameworks in lst|groupby('tier') %}
+        <li><a href="#fw-tier{{tier}}">Tier {{ tier }}</a></li>
+      {% endfor %}
+    </ul>
+  </li>
+{% endmacro %}
+
+{% block page_title %}{{title}} - Frameworks{% endblock %}
+{% block title %}Frameworks{% endblock %}
+
+{% block head %}
+  <script type="text/javascript" src="{{resources}}/notetip.js"></script>
+  <script type="text/javascript" src="{{resources}}/frameworks.js"></script>
+  <link rel="stylesheet" type="text/css" href="{{resources}}/frameworks.css" />
+  <script>
+  $(document).ready(main);
+  </script>
+{% endblock %}
+
+{% block content %}
+            <h2><a name="content"></a>{{title}}</h2>
+
+            <div class="header">
+              <div class="headertitle">
+                <div class="title">
+                  KDE API Reference
+                </div>
+              </div>
+            </div>
+            <div class="contents">
+              <h2>The KDE products</h2>
+              <div class="textblock">
+                {% for para in intro %}
+                  <p>{{ para }}</p>
+                {% endfor %}
+              </div>
+              <h2>List of our products</h2>
+              {% for product in product_list | sort(attribute='name')%}
+                <div class="product" style="margin-bottom:30px;height:80px;">
+                  <div class="product-logo" style="float:left;">
+                    <img src="img.png" width="80px" />
+                  </div>
+                  <div class="product-descr" style="margin-left:80px">
+                    <ul>
+                      <li><a name="prod-{{ product.name }}" href="{{ product.href }}">{{ product.name }}</a></li>
+                      <li>{{ product.description }}</li>
+                      <li class="framework-maintainer-column">{% include "maintainers.html" %}</li>
+                      <li>{{ product.plateform }}</li>
+                       <!--<li>?? avaliable versions vX.X | vY.Y</li> -->
+                    </ul>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+
+{% endblock content %}
+
+{% block sidebar %}
+
+        <div class="menu_box">
+          <div class="menutitle">
+            <div>
+              <h2>Table of Content</h2>
+            </div>
+          </div>
+          <div class="nav_list">
+            <ul>
+              <li>Frameworks
+                <ul>
+                  {% for tier, _ in framework_lst|groupby('tier') %}
+                    <li><a href="#fw-tier{{tier}}">Tier {{ tier }}</a></li>
+                  {% endfor %}
+                </ul>
+              </li>
+              <li><a href="#porting-aids">Porting Aids</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="menu_box">
+          <div class="menutitle">
+            <div>
+              <h2>Filters</h2>
+            </div>
+          </div>
+          <div>
+            <ul>
+              <li>
+                <label>
+                  <input id="platform-filter" type="checkbox">Filter by platform
+                </label>
+                <ul id="platform-filter-group" style="display: none">
+                  <li>Only show frameworks which supports all of:</li>
+                  {% for platform in available_platforms %}
+                    <li>
+                      <label>
+                        <input data-platform="{{ platform }}" class="platform-checkbox" type="checkbox" checked="1">{{ platform }}
+                      </label>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </li>
+              <li>
+                <label>
+                  <input id="showMaintainers" type="checkbox">Show maintainers
+                </label>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+{% endblock %} {# sidebar #}

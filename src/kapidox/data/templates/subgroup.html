@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% macro write_toc(title, subgroups) %}
+  <li>{{ title }}
+    <ul>
+      {% for subgroup in subgroups %}
+        <li><a href="#sg-{{ subgroup.name }}">{{ subgroup.name }}</a></li>
+      {% endfor %}
+    </ul>
+  </li>
+{% endmacro %}
+
+{% macro write_library_list(libs) %}
+  <table class="doxtable frameworks">
+    <tr>
+      <th class="framework-main-column">Framework</th>
+      <th class="framework-detail-column framework-maintainer-column">Maintainer</th>
+      <th class="framework-detail-column framework-type-column">Type</th>
+    </tr>
+  {% for lib in libs %}
+    <tr class="framework-row" id="lib-{{ lib.name }}" data-platforms="{{ lib.platforms|join(',') }}">
+      <td class="framework-main-column">
+        <img class="not-available-indicator" src="{{resources}}/icons/bad.png"/>
+        <img class="available-indicator" src="{{resources}}/icons/ok.png"/>
+        <div>
+          <div class="framework-platforms">
+          {#{% for platform in available_platforms %}
+            <span class="framework-platform
+              framework-platform-{{ platform }}
+              {% if platform not in lib.platforms %}framework-platform-unsupported{% endif %}"
+              >
+            {% if lib.platforms.get(platform) %}
+              <a data-note="{{ fw.platform_dict.get(platform) }}" href="#">
+            {% endif %}
+                <span class="framework-platform-text">{{ platform }}</span>
+            {% if fw.platform_dict.get(platform) %}
+                <img src="{{resources}}/icons/warning.png"/></a>
+            {% endif %}
+            </span>
+          {% endfor %} #}
+          </div>
+          <a class="framework-fancyname" href="{{lib.href}}">{{lib.name}}</a>
+        </div>
+        <span class="framework-description">{{lib.description}}</span>
+      </td>
+      <td class="framework-detail-column framework-maintainer-column">{% set product = lib %}{% include "maintainers.html" %}</td>
+      <td class="framework-detail-column framework-type-column">{{ lib.type }}</td>
+      </td>
+    </tr>
+  {% endfor %}
+  </table>
+{% endmacro %}
+
+{% block page_title %}{{title}} - Frameworks{% endblock %}
+{% block title %}Frameworks{% endblock %}
+
+{% block head %}
+  <script type="text/javascript" src="{{resources}}/notetip.js"></script>
+  <script type="text/javascript" src="{{resources}}/frameworks.js"></script>
+  <link rel="stylesheet" type="text/css" href="{{resources}}/frameworks.css" />
+  <script>
+  $(document).ready(main);
+  </script>
+{% endblock %}
+
+{% block content %}
+            <h2><a name="content"></a>{{title}}</h2>
+
+            <div class="header">
+              <div class="headertitle">
+                <div class="title">
+                  KDE Frameworks API Reference
+                </div>
+              </div>
+            </div>
+            <div class="contents">
+              <h2>The KDE Frameworks</h2>
+              <div class="textblock">
+                ADD AN ATTRIBUTE LONG DESCRIPTION TO GROUP
+              </div>
+              <h2>List of the libraries of {{ group.name }}</h2>
+            {% if group.subgroups | length() > 0 %}
+              {% for parent, libs in group.libs | groupby('parent') %}
+                <h3><a name="sg-{{ parent }}"></a>{{ parent }}</h3>
+                <p>DESCRIPTION OF THE PARENT</p>
+                {{ write_library_list(libs) }}
+              {% endfor %}
+            {% else %}
+              {{ write_library_list(libs) }}
+            {% endif %}
+            </div>
+
+{% endblock content %}
+
+{% block sidebar %}
+
+        <div class="menu_box">
+          <div class="menutitle">
+            <div>
+              <h2>Table of Content</h2>
+            </div>
+          </div>
+          <div class="nav_list">
+            <ul>
+              <li>Frameworks
+                <ul>
+                  {% for tier, _ in framework_lst|groupby('tier') %}
+                    <li><a href="#fw-tier{{tier}}">Tier {{ tier }}</a></li>
+                  {% endfor %}
+                </ul>
+              </li>
+              <li><a href="#porting-aids">Porting Aids</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="menu_box">
+          <div class="menutitle">
+            <div>
+              <h2>Filters</h2>
+            </div>
+          </div>
+          <div>
+            <ul>
+              <li>
+                <label>
+                  <input id="platform-filter" type="checkbox">Filter by platform
+                </label>
+                <ul id="platform-filter-group" style="display: none">
+                  <li>Only show frameworks which supports all of:</li>
+                  {% for platform in available_platforms %}
+                    <li>
+                      <label>
+                        <input data-platform="{{ platform }}" class="platform-checkbox" type="checkbox" checked="1">{{ platform }}
+                      </label>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </li>
+              <li>
+                <label>
+                  <input id="showMaintainers" type="checkbox">Show maintainers
+                </label>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+{% endblock %} {# sidebar #}

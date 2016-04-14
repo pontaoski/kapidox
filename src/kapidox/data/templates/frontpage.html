@@ -1,15 +1,5 @@
 {% extends "base.html" %}
 
-{% macro write_toc(title, lst) %}
-  <li>{{ title }}
-    <ul>
-      {% for tier, frameworks in lst|groupby('tier') %}
-        <li><a href="#fw-tier{{tier}}">Tier {{ tier }}</a></li>
-      {% endfor %}
-    </ul>
-  </li>
-{% endmacro %}
-
 {% block page_title %}{{title}} - Frameworks{% endblock %}
 {% block title %}Frameworks{% endblock %}
 
@@ -49,7 +39,7 @@
                     <ul>
                       <li><a name="prod-{{ product.name }}" href="{{ product.href }}">{{ product.name }}</a></li>
                       <li>{{ product.description }}</li>
-                      <li class="framework-maintainer-column">{% include "maintainers.html" %}</li>
+                      <li class="prod-maintainer">{% include "maintainers.html" %}</li>
                       <li>{{ product.plateform }}</li>
                        <!--<li>?? avaliable versions vX.X | vY.Y</li> -->
                     </ul>
@@ -65,21 +55,14 @@
         <div class="menu_box">
           <div class="menutitle">
             <div>
-              <h2>Table of Content</h2>
+              <h2>KDE Products for developers</h2>
             </div>
           </div>
-          <div class="nav_list">
-            <ul>
-              <li>Frameworks
-                <ul>
-                  {% for tier, _ in framework_lst|groupby('tier') %}
-                    <li><a href="#fw-tier{{tier}}">Tier {{ tier }}</a></li>
-                  {% endfor %}
-                </ul>
-              </li>
-              <li><a href="#porting-aids">Porting Aids</a></li>
-            </ul>
-          </div>
+          <ul>
+            <li>Description of what you can find here</li>
+            <li> &nbsp; </li>
+            <li>If you are looking for documentation about KDE software or how to use Plasma, please refer to our <a href="https://userbase.kde.org">userbase website</a>.</li>
+          </ul>
         </div>
 
         <div class="menu_box">
@@ -105,11 +88,12 @@
                   {% endfor %}
                 </ul>
               </li>
-              <li>
+{#              <li>
                 <label>
                   <input id="showMaintainers" type="checkbox">Show maintainers
                 </label>
               </li>
+#}
             </ul>
           </div>
         </div>

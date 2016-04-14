@@ -30,15 +30,14 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 
 import argparse
+import datetime
 import logging
 import codecs
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 
-import jinja2
 import yaml
 
 from kapidox import argparserutils
@@ -53,32 +52,55 @@ except ImportError:
 PLATFORM_ALL = "All"
 PLATFORM_UNKNOWN = "UNKNOWN"
 
+def override_metainfo(metainfo, metainfo_yml, keys_metainfo):
+    for key_tuple in keys_metainfo:
+        if key_tuple[0] not in metainfo and key_tuple[1] in metainfo_yml:
+            metainfo[key_tuple[0]] = metainfo_yml[key_tuple[1]]
+    return metainfo
 
 def create_metainfo(frameworksdir, path):
     if not os.path.isdir(path):
         return None
 
     #yaml_file = os.path.join(fwdir, 'metainfo.yaml')
-    yaml_file = os.path.join(path, 'config.kapidox')
-    if not os.path.isfile(yaml_file):
+    kapidox_file = os.path.join(path, 'config.kapidox')
+    metainfo_file = os.path.join(path, 'metainfo.yaml')
+    if not os.path.isfile(kapidox_file):
       #  logging.warning('{} does not contain a library (config.kapidox missing)'.format(fwdir))
         return None
 
     # FIXME: option in yaml file to disable docs
+    if os.path.isfile(metainfo_file):
+        metainfo_yml = yaml.load(open(metainfo_file))
+    else: 
+        metainfo_yml = None
     try:
-        metainfo = yaml.load(open(yaml_file))
+        metainfo = yaml.load(open(kapidox_file))
     except:
-        logging.warning('Could not load metainfo.yaml for {}, skipping it'.format(path))
+        logging.warning('Could not load config.kapidox for {}, skipping it'.format(path))
         return None
 
     if metainfo is None:
-        logging.warning('Empty metainfo.yaml for {}, skipping it'.format(path))
+        logging.warning('Empty config.kapidox for {}, skipping it'.format(path))
         return None
       
     if 'subgroup' in metainfo and 'group' not in metainfo:
         logging.warning('Subgroup but no group in {}, skipping it'.format(path))
         return None
 
+    if metainfo_yml is not None:
+        keys = [
+                ('maintainer', 'maintainer'),
+                ('description', 'description'),
+                ('type', 'type'),
+                ('platforms', 'platforms'),
+                ('portingAid', 'portingAid'),
+                ('deprecated', 'deprecated'),
+                ('libraries', 'libraries'),
+                ('cmakename', 'cmakename'),
+            ]
+                
+        metainfo = override_metainfo(metainfo, metainfo_yml, keys)
     
     metainfo.update({
         'dependency_diagram': None,
@@ -95,8 +117,6 @@ def sort_metainfo(metalist, all_maintainers):
     
     for metainfo in metalist:
         outputdir = metainfo.get('name')        
-        if 'subgroup' in metainfo:
-            outputdir = metainfo.get('subgroup') + '/' + outputdir
         if 'group' in metainfo:
             outputdir = metainfo.get('group') + '/' + outputdir
         outputdir = outputdir.lower()
@@ -111,12 +131,17 @@ def sort_metainfo(metalist, all_maintainers):
             'name': metainfo['name'],
             'description': metainfo.get('description'),
             'maintainers': set_maintainers(metainfo, 'maintainer', all_maintainers),
-            'platform': metainfo.get('description'),
+            'platform': metainfo.get('platform', []),
             'parent': parent,
-            'href': outputdir.lower() + '/html/index.html',
+            'href': '../'+outputdir.lower() + '/html/index.html',
             'outputdir': outputdir.lower(),
-            'srcdir': metainfo['path']+'/src' if 'srcdir' not in metainfo else metainfo['srcdir'],
+            'srcdir': metainfo.get('srcdir',  metainfo['path']+'/src'),
             'dependency_diagram': None,
+            'type': metainfo.get('type', ''),
+            'portingAid': metainfo.get('portingAid', False),
+            'deprecated': metainfo.get('portingAid', False),
+            'libraries': metainfo.get('libraries', []),
+            'cmakename': metainfo.get('cmakename', '')
         }
         libraries.append(lib)
         
@@ -181,13 +206,6 @@ def expand_platform_all(dct, available_platforms):
 def process_toplevel_html_file(outputfile, doxdatadir, products, title,
         api_searchbox=False):
 
-    # TODO: text index
-    #with open(os.path.join(doxdatadir, 'frameworks.yaml')) as f:
-    #    tierinfo = yaml.load(f)
-
-    # Gather a list of all products
-    # TODO: add plateform!
-           
     products.sort(key=lambda x: x['name'].lower())
     mapping = {
             'resources': '.',
@@ -308,7 +326,7 @@ def create_fw_context(args, lib, tagfiles):
                             fancyname=lib['name'],
                             fwinfo=lib,
                             # KApidox files
-                            resourcedir='../..',
+                            resourcedir='../..' if lib['parent'] is None else '../../..',
                             # Input
                             srcdir=lib['srcdir'],
                             tagfiles=tagfiles,
@@ -328,8 +346,8 @@ def gen_fw_apidocs(ctx, tmp_base_dir):
 def finish_fw_apidocs(ctx, group_menu):
     classmap = generator.build_classmap(ctx.tagfile)
     generator.write_mapping_to_php(classmap, os.path.join(ctx.outputdir, 'classmap.inc'))
-    generator.postprocess(ctx, classmap,
-            template_mapping={
+    
+    template_mapping={
                 'breadcrumbs': {
                     'entries': [
                         {
@@ -347,9 +365,25 @@ def finish_fw_apidocs(ctx, group_menu):
                         ]
                     },
                 #'group_menu': group_menu
-                },
-            )
+                }
+    copyright = '1996-' + str(datetime.date.today().year) + ' The KDE developers'
+    mapping = {
+            'doxygencss': 'doxygen.css',
+            'resources': ctx.resourcedir,
+            'title': ctx.title,
+            'fwinfo': ctx.fwinfo,
+            'copyright': copyright,
+            'api_searchbox': ctx.api_searchbox,
+            'doxygen_menu': {'entries': None},#menu_items(ctx.htmldir, ctx.modulename)},
+            'class_map': {'classes': classmap},
+            'kapidox_version': utils.get_kapidox_version(),
+        }
+    if template_mapping:
+        mapping.update(template_mapping)
+    logging.info('Postprocessing')
 
+    tmpl = generator.create_jinja_environment(ctx.doxdatadir).get_template('doxygen2.html')
+    generator.postprocess_internal(ctx.htmldir, tmpl, mapping)
 
 def create_fw_tagfile_tuple(lib):
     tagfile = os.path.abspath(
@@ -407,7 +441,6 @@ def main():
             metalist.append(metainfo)
     products, groups, libraries = sort_metainfo(metalist, maintainers)
     generator.copy_dir_contents(os.path.join(args.doxdatadir,'htmlresource'),'.')
-    print(groups)
     #group_menu = generate_group_menu(metalist)
     
     process_toplevel_html_file('index.html', args.doxdatadir,

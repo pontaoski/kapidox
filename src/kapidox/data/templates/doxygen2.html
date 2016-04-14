@@ -43,9 +43,9 @@
   </div>
   {% if doxygen_menu %}
   <ul>
-    {#{% for entry in doxygen_menu.entries %}
+    {% for entry in doxygen_menu.entries %}
       <li><a href="{{entry.href}}">{{entry.text}}</a></li>
-    {% endfor %}#}
+    {% endfor %}
   </ul>
   {% endif %}
 </div>

@@ -58,6 +58,9 @@ def override_metainfo(metainfo, metainfo_yml, keys_metainfo):
             metainfo[key_tuple[0]] = metainfo_yml[key_tuple[1]]
     return metainfo
 
+def serialize_name(name):
+    return '_'.join(name.lower().split(' '))
+    
 def create_metainfo(frameworksdir, path):
     if not os.path.isdir(path):
         return None
@@ -88,6 +91,12 @@ def create_metainfo(frameworksdir, path):
         logging.warning('Subgroup but no group in {}, skipping it'.format(path))
         return None
 
+    modulename = path.split('/')[-1]
+    fancyname = utils.parse_fancyname(path)
+    if not fancyname:
+        logging.warning('Could not find fancy name for {}, skipping it'.format(path))
+        return None
+        
     if metainfo_yml is not None:
         keys = [
                 ('maintainer', 'maintainer'),
@@ -101,15 +110,17 @@ def create_metainfo(frameworksdir, path):
             ]
                 
         metainfo = override_metainfo(metainfo, metainfo_yml, keys)
-    
+
     metainfo.update({
+        'name': fancyname,
+        'modulename': modulename,
         'dependency_diagram': None,
         'path': path,
         })
         
     return metainfo
     
-    
+
 def sort_metainfo(metalist, all_maintainers):
     products = []
     groups = []
@@ -119,7 +130,8 @@ def sort_metainfo(metalist, all_maintainers):
         outputdir = metainfo.get('name')        
         if 'group' in metainfo:
             outputdir = metainfo.get('group') + '/' + outputdir
-        outputdir = outputdir.lower()
+        outputdir = serialize_name(outputdir)
+        
         if 'subgroup' in metainfo:
             parent = metainfo['subgroup']
         elif 'group' in metainfo:
@@ -129,6 +141,7 @@ def sort_metainfo(metalist, all_maintainers):
             
         lib = {
             'name': metainfo['name'],
+            'modulename': metainfo['modulename'],
             'description': metainfo.get('description'),
             'maintainers': set_maintainers(metainfo, 'maintainer', all_maintainers),
             'platform': metainfo.get('platform', []),
@@ -153,7 +166,7 @@ def sort_metainfo(metalist, all_maintainers):
                 'platform': metainfo['group_info'].get('platform'),
                 'logo_url': metainfo['group_info'].get('logo'),
                 'href': metainfo['group'].lower()+'/index.html',
-                'outputdir': metainfo['name'].lower()
+                'outputdir': serialize_name(metainfo['group'])
             })
         elif 'group' not in metainfo:
             products.append({
@@ -185,6 +198,7 @@ def sort_metainfo(metalist, all_maintainers):
                     glst[0]['subgroups'].append(subgroup)
                 glst[0]['libs'].append(lib)
                 
+    print(products)
                     
     return products, groups, libraries
   
@@ -322,13 +336,13 @@ def set_maintainers(dictionary, key, maintainers):
 def create_fw_context(args, lib, tagfiles):
     return generator.Context(args,
                             # Names
-                            modulename=lib['name'],
+                            modulename=lib['modulename'],
                             fancyname=lib['name'],
                             fwinfo=lib,
                             # KApidox files
                             resourcedir='../..' if lib['parent'] is None else '../../..',
                             # Input
-                            srcdir=lib['srcdir'],
+                            srcdir=lib['srcdir']+'/..',
                             tagfiles=tagfiles,
                             dependency_diagram=lib['dependency_diagram'],
                             # Output
@@ -374,7 +388,7 @@ def finish_fw_apidocs(ctx, group_menu):
             'fwinfo': ctx.fwinfo,
             'copyright': copyright,
             'api_searchbox': ctx.api_searchbox,
-            'doxygen_menu': {'entries': None},#menu_items(ctx.htmldir, ctx.modulename)},
+            'doxygen_menu': {'entries': generator.menu_items(ctx.htmldir, ctx.modulename)},
             'class_map': {'classes': classmap},
             'kapidox_version': utils.get_kapidox_version(),
         }

@@ -135,7 +135,7 @@ def sort_metainfo(metalist, all_maintainers):
             'parent': parent,
             'href': '../'+outputdir.lower() + '/html/index.html',
             'outputdir': outputdir.lower(),
-            'srcdir': metainfo.get('srcdir',  metainfo['path']+'/src'),
+            'srcdir':  metainfo['path']+'/' + metainfo.get('srcdir', 'src'),
             'dependency_diagram': None,
             'type': metainfo.get('type', ''),
             'portingAid': metainfo.get('portingAid', False),

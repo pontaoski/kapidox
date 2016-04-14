@@ -146,6 +146,7 @@ def sort_metainfo(metalist, all_maintainers):
             'maintainers': set_maintainers(metainfo, 'maintainer', all_maintainers),
             'platform': metainfo.get('platform', []),
             'parent': parent,
+            'group': metainfo.get('group'),
             'href': '../'+outputdir.lower() + '/html/index.html',
             'outputdir': outputdir.lower(),
             'srcdir':  metainfo['path']+'/' + metainfo.get('srcdir', 'src'),
@@ -231,7 +232,7 @@ def process_toplevel_html_file(outputfile, doxdatadir, products, title,
             'breadcrumbs': {
                 'entries': [
                     {
-                        'href': 'http://api.kde.org/',
+                        'href': './index.html',
                         'text': 'KDE API Reference'
                     }
                     ]
@@ -256,7 +257,7 @@ def process_subgroup_html_files(outputfile, doxdatadir, groups, title,
             'breadcrumbs': {
                 'entries': [
                     {
-                        'href': 'http://api.kde.org/',
+                        'href': '../index.html',
                         'text': 'KDE API Reference'
                     }
                     ]
@@ -361,22 +362,24 @@ def finish_fw_apidocs(ctx, group_menu):
     classmap = generator.build_classmap(ctx.tagfile)
     generator.write_mapping_to_php(classmap, os.path.join(ctx.outputdir, 'classmap.inc'))
     
+    entries = [{
+        'href': '../../index.html',
+        'text': 'KDE API Reference'
+        }]
+    if ctx.fwinfo['parent'] is not None:
+        entries[0]['href'] = '../' + entries[0]['href']
+        entries.append({
+            'href': '../../index.html',
+            'text': ctx.fwinfo['group']
+            })
+    entries.append({
+        'href': 'index.html',
+        'text': ctx.fancyname
+        })
+
     template_mapping={
                 'breadcrumbs': {
-                    'entries': [
-                        {
-                            'href': 'http://api.kde.org/',
-                            'text': 'KDE API Reference'
-                        },
-                        {
-                            'href': '../../index.html',
-                            'text': 'Frameworks'
-                        },
-                        {
-                            'href': 'index.html',
-                            'text': ctx.fancyname
-                        }
-                        ]
+                    'entries': entries
                     },
                 #'group_menu': group_menu
                 }

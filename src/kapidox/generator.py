@@ -28,7 +28,6 @@
 # Python 2/3 compatibility (NB: we require at least 2.7)
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-import argparse
 import codecs
 import datetime
 import os
@@ -593,7 +592,7 @@ def generate_apidocs(ctx, tmp_dir, doxyfile_entries=None, keep_temp_dirs=False):
 
     doxyfile_path = os.path.join(tmp_dir, 'Doxyfile')
     with codecs.open(doxyfile_path, 'w', 'utf-8') as doxyfile:
-
+        print(ctx.doxdatadir)
         # Global defaults
         with codecs.open(os.path.join(ctx.doxdatadir,'Doxyfile.global'), 'r', 'utf-8') as f:
             for line in f:
@@ -601,14 +600,14 @@ def generate_apidocs(ctx, tmp_dir, doxyfile_entries=None, keep_temp_dirs=False):
 
         writer = DoxyfileWriter(doxyfile)
         writer.write_entry('PROJECT_NAME', ctx.fancyname)
-        # FIXME: can we get the project version from CMake?
+        # FIXME: can we get the project version from CMake? No from GIT TAGS!
 
         # Input locations
         image_path_list.extend(find_src_subdir('docs/pics'))
         writer.write_entries(
                 INPUT=input_list,
                 DOTFILE_DIRS=find_src_subdir('docs/dot'),
-                EXAMPLE_PATH=find_src_subdir('docs/examples'),
+                EXAMPLE_PATH= find_src_subdir('docs/examples'),
                 IMAGE_PATH=image_path_list)
 
         # Other input settings

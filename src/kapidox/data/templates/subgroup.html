@@ -76,18 +76,42 @@
             <div class="contents">
               <h2>The KDE Frameworks</h2>
               <div class="textblock">
-                ADD AN ATTRIBUTE LONG DESCRIPTION TO GROUP
+                {% for paragraph in group.long_description %}
+                    <p>{{ paragraph }}</p>
+                {% endfor %}
+
               </div>
               <h2>List of the libraries of {{ group.name }}</h2>
-            {% if group.subgroups | length() > 0 %}
-              {% for parent, libs in group.libs | groupby('parent') %}
-                <h3><a name="sg-{{ parent }}"></a>{{ parent }}</h3>
-                <p>DESCRIPTION OF THE PARENT</p>
+              {#
+              {% for lib in group.libraries %}
+                <h3><a name="sg-{{ nosubgroup }}"></a>Without subgroup</h3>
                 {{ write_library_list(libs) }}
               {% endfor %}
-            {% else %}
-              {{ write_library_list(libs) }}
-            {% endif %}
+              {% for subgroup in group.subgroups %}
+                <h3><a name="sg-{{ subgroup.name }}"></a>subgroup.name</h3>
+                <p> {{ subgroup.description }}</p>
+                {% for libs in subgroup.libraries | sort(attribute=name) %}
+                  {{ write_library_list(libs) }}
+                {% endfor %}
+              {% endfor %}#}
+              {#{% for lib in group.libraries
+                 if not lib.subgroup  | sort(attribute=name) %}
+                <h3><a name="sg-{{ nosubgroup }}"></a>Without subgroup</h3>
+                {{ write_library_list(libs) }}
+                {{ lib.name }}
+              {% endfor %}#}
+
+
+                <h3><a name="sg-{{ nosubgroup }}"></a>Without subgroup</h3>
+                {{ write_library_list(group.libraries | selectattr('subgroup', 'none') )}}
+              {#% endif %#}
+              {% for subgroup in group.subgroups |sort(attribute='name') %}
+                <h3><a name="sg-{{ subgroup.name }}"></a>{{ subgroup.name }}</h3>
+                <p> {{ subgroup.description }}</p>
+                {{ write_library_list(subgroup.libraries) }}
+              {% endfor %}
+
+
             </div>
 
 {% endblock content %}

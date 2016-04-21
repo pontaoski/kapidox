@@ -107,43 +107,50 @@ def sort_metainfo(metalist, all_maintainers):
             outputdir = metainfo.get('group') + '/' + outputdir
         outputdir = serialize_name(outputdir)
         
-        if 'subgroup' in metainfo:
-            parent = metainfo['subgroup']
-        elif 'group' in metainfo:
-            parent = metainfo['group']
-        else:
-            parent = None
-            
         lib = {
             'name': metainfo['name'],
             'modulename': metainfo['modulename'],
             'description': metainfo.get('description'),
             'maintainers': set_maintainers(metainfo, 'maintainer', all_maintainers),
             'platform': metainfo.get('platform', []),
-            'parent': parent,
-            'group': metainfo.get('group'),
+            'parent': {'group': metainfo.get('group'), 'subgroup': metainfo.get('subgroup')},
             'href': '../'+outputdir.lower() + '/html/index.html',
             'outputdir': outputdir.lower(),
             'srcdir':  metainfo['path']+'/' + metainfo.get('srcdir', 'src'),
             'dependency_diagram': None,
             'type': metainfo.get('type', ''),
             'portingAid': metainfo.get('portingAid', False),
-            'deprecated': metainfo.get('portingAid', False),
+            'deprecated': metainfo.get('deprecated', False),
             'libraries': metainfo.get('libraries', []),
             'cmakename': metainfo.get('cmakename', '')
         }
         libraries.append(lib)
-        
+
+        # if there is a group, the product is the group
+        # else the product is directly the library
         if 'group_info' in metainfo:
-            products.append({
+            product = {
                 'name': metainfo['group'],
                 'description': metainfo['group_info'].get('description'),
+                'long_description': metainfo['group_info'].get('long_description', []),
                 'maintainers': set_maintainers(metainfo['group_info'], 'maintainer', all_maintainers),
                 'platform': metainfo['group_info'].get('platform'),
                 'logo_url': metainfo['group_info'].get('logo'),
                 'href': metainfo['group'].lower()+'/index.html',
-                'outputdir': serialize_name(metainfo['group'])
-            })
+                'outputdir': serialize_name(metainfo['group']),
+                'libraries': []
+            }
+            subgroups = []#{'name': None, 'description': None, 'libraries': [] }]
+            if 'subgroups' in metainfo['group_info']:
+                for sg in metainfo['group_info']['subgroups']:
+                    if 'name' in sg:
+                        subgroups.append({
+                            'name': sg['name'],
+                            'description': sg.get('description'),
+                            'libraries': []
+                        })
+            product['subgroups'] = subgroups;
+            products.append(product)
         elif 'group' not in metainfo:
             products.append({
                 'name': metainfo['name'],
@@ -154,27 +161,22 @@ def sort_metainfo(metalist, all_maintainers):
                 'href': metainfo['name'].lower()+'/html/index.html',
                 'outputdir': metainfo['name'].lower()
             })
-        if 'subgroup' in metainfo:
-           # group = {
-           #     'name': metainfo['group'],
-           #     'subgroups': [{'name': metainfo['subgroup'], 'description': "description"}],
-           #     'lib': [lib]
-           #     }
-            subgroup = {'name': metainfo['subgroup'], 'description': "description"}
-            glst = [g for g in groups if g['name'] == metainfo['group']]
-            if len(glst) is 0:
-                groups.append({
-                    'name': metainfo['group'],
-                    'subgroups': [subgroup],
-                    'libs': [lib]
-                    })
+
+    # We have all groups and libraries, let set the parents.
+    for lib in libraries:
+        if lib['parent'].get('group') is not None:
+            product = [x for x in products if x['name'].lower() == lib['parent']['group'].lower()][0]
+            lib['product'] = product
+            product['libraries'].append(lib)
+            if lib['parent'].get('subgroup') is None:
+                lib['subgroup'] = None
             else:
-                sglst = [sg for sg in glst[0]['subgroups'] if sg['name'] == metainfo['subgroup']]
-                if len(sglst) is 0:
-                    glst[0]['subgroups'].append(subgroup)
-                glst[0]['libs'].append(lib)
-                
-    print(products)
+                subgroup = [x for x in lib['product']['subgroups'] if x['name'].lower() == lib['parent']['subgroup'].lower()][0]
+                lib['subgroup'] = subgroup
+                subgroup['libraries'].append(lib)
+        else:
+            lib['parent'] = None
+        groups.append(product)   
                     
     return products, groups, libraries
   
@@ -227,13 +229,17 @@ def process_subgroup_html_files(outputfile, doxdatadir, groups, title,
             'api_searchbox': api_searchbox,
             # steal the doxygen css from one of the frameworks
             # this means that all the doxygen-provided images etc. will be found
-            'doxygencss': group['libs'][0]['outputdir'] + '/html/doxygen.css',
+            'doxygencss': group['libraries'][0]['outputdir'] + '/html/doxygen.css',
             'title': title,
             'breadcrumbs': {
                 'entries': [
                     {
                         'href': '../index.html',
                         'text': 'KDE API Reference'
+                    },
+                    {
+                        'href': './index.html',
+                        'text': group['name']
                     }
                     ]
                 },
@@ -345,7 +351,7 @@ def finish_fw_apidocs(ctx, group_menu):
         entries[0]['href'] = '../' + entries[0]['href']
         entries.append({
             'href': '../../index.html',
-            'text': ctx.fwinfo['group']
+            'text': ctx.fwinfo['product']['name']
             })
     entries.append({
         'href': 'index.html',
@@ -454,6 +460,7 @@ def main():
                 if ok:
                     lib['dependency_diagram'] = png_path
             ctx = create_fw_context(args, lib, tagfiles)
+            print(ctx.srcdir)
             gen_fw_apidocs(ctx, tmp_dir)
             tagfiles.append(create_fw_tagfile_tuple(lib))
         # Rebuild for interdependencies

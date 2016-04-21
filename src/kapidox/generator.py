@@ -592,7 +592,6 @@ def generate_apidocs(ctx, tmp_dir, doxyfile_entries=None, keep_temp_dirs=False):
 
     doxyfile_path = os.path.join(tmp_dir, 'Doxyfile')
     with codecs.open(doxyfile_path, 'w', 'utf-8') as doxyfile:
-        print(ctx.doxdatadir)
         # Global defaults
         with codecs.open(os.path.join(ctx.doxdatadir,'Doxyfile.global'), 'r', 'utf-8') as f:
             for line in f:

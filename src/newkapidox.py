@@ -52,11 +52,6 @@ except ImportError:
 PLATFORM_ALL = "All"
 PLATFORM_UNKNOWN = "UNKNOWN"
 
-def override_metainfo(metainfo, metainfo_yml, keys_metainfo):
-    for key_tuple in keys_metainfo:
-        if key_tuple[0] not in metainfo and key_tuple[1] in metainfo_yml:
-            metainfo[key_tuple[0]] = metainfo_yml[key_tuple[1]]
-    return metainfo
 
 def serialize_name(name):
     return '_'.join(name.lower().split(' '))
@@ -65,26 +60,20 @@ def create_metainfo(frameworksdir, path):
     if not os.path.isdir(path):
         return None
 
-    #yaml_file = os.path.join(fwdir, 'metainfo.yaml')
-    kapidox_file = os.path.join(path, 'config.kapidox')
     metainfo_file = os.path.join(path, 'metainfo.yaml')
-    if not os.path.isfile(kapidox_file):
-      #  logging.warning('{} does not contain a library (config.kapidox missing)'.format(fwdir))
+    if not os.path.isfile(metainfo_file):
+        #logging.warning('{} does not contain a library (metainfo.yml missing)'.format(path))
         return None
 
     # FIXME: option in yaml file to disable docs
-    if os.path.isfile(metainfo_file):
-        metainfo_yml = yaml.load(open(metainfo_file))
-    else: 
-        metainfo_yml = None
     try:
-        metainfo = yaml.load(open(kapidox_file))
+        metainfo = yaml.load(open(metainfo_file))
     except:
         logging.warning('Could not load config.kapidox for {}, skipping it'.format(path))
         return None
 
     if metainfo is None:
-        logging.warning('Empty config.kapidox for {}, skipping it'.format(path))
+        logging.warning('Empty metainfo.yml for {}, skipping it'.format(path))
         return None
       
     if 'subgroup' in metainfo and 'group' not in metainfo:
@@ -96,20 +85,6 @@ def create_metainfo(frameworksdir, path):
     if not fancyname:
         logging.warning('Could not find fancy name for {}, skipping it'.format(path))
         return None
-        
-    if metainfo_yml is not None:
-        keys = [
-                ('maintainer', 'maintainer'),
-                ('description', 'description'),
-                ('type', 'type'),
-                ('platforms', 'platforms'),
-                ('portingAid', 'portingAid'),
-                ('deprecated', 'deprecated'),
-                ('libraries', 'libraries'),
-                ('cmakename', 'cmakename'),
-            ]
-                
-        metainfo = override_metainfo(metainfo, metainfo_yml, keys)
 
     metainfo.update({
         'name': fancyname,

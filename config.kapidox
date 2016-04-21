@@ -1,5 +1,0 @@
-name: KApiDox
-group: frameworks
-subgroup: tier 1
-public_source_dirs:
-    - src

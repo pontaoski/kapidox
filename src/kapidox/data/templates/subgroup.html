@@ -4,7 +4,7 @@
   <li>{{ title }}
     <ul>
       {% for subgroup in subgroups %}
-        <li><a href="#sg-{{ subgroup.name }}">{{ subgroup.name }}</a></li>
+        <li><a href="#sg-{{ subgroup.name }}">{{ subgroup.fancyname }}</a></li>
       {% endfor %}
     </ul>
   </li>
@@ -24,22 +24,22 @@
         <img class="available-indicator" src="{{resources}}/icons/ok.png"/>
         <div>
           <div class="framework-platforms">
-          {#{% for platform in available_platforms %}
+          {% for platform in available_platforms %}
             <span class="framework-platform
               framework-platform-{{ platform }}
               {% if platform not in lib.platforms %}framework-platform-unsupported{% endif %}"
               >
             {% if lib.platforms.get(platform) %}
-              <a data-note="{{ fw.platform_dict.get(platform) }}" href="#">
+              <a data-note="{{ lib.platforms.get(platform) }}" href="#">
             {% endif %}
                 <span class="framework-platform-text">{{ platform }}</span>
-            {% if fw.platform_dict.get(platform) %}
+            {% if lib.platforms.get(platform) %}
                 <img src="{{resources}}/icons/warning.png"/></a>
             {% endif %}
             </span>
-          {% endfor %} #}
+          {% endfor %}
           </div>
-          <a class="framework-fancyname" href="{{lib.href}}">{{lib.name}}</a>
+          <a class="framework-fancyname" href="{{lib.href}}">{{lib.fancyname}}</a>
         </div>
         <span class="framework-description">{{lib.description}}</span>
       </td>
@@ -74,39 +74,23 @@
               </div>
             </div>
             <div class="contents">
-              <h2>The KDE Frameworks</h2>
+              <h1>{{ group.fancyname}}</h1>
               <div class="textblock">
                 {% for paragraph in group.long_description %}
                     <p>{{ paragraph }}</p>
                 {% endfor %}
 
               </div>
-              <h2>List of the libraries of {{ group.name }}</h2>
-              {#
-              {% for lib in group.libraries %}
-                <h3><a name="sg-{{ nosubgroup }}"></a>Without subgroup</h3>
-                {{ write_library_list(libs) }}
-              {% endfor %}
-              {% for subgroup in group.subgroups %}
-                <h3><a name="sg-{{ subgroup.name }}"></a>subgroup.name</h3>
-                <p> {{ subgroup.description }}</p>
-                {% for libs in subgroup.libraries | sort(attribute=name) %}
-                  {{ write_library_list(libs) }}
-                {% endfor %}
-              {% endfor %}#}
-              {#{% for lib in group.libraries
-                 if not lib.subgroup  | sort(attribute=name) %}
-                <h3><a name="sg-{{ nosubgroup }}"></a>Without subgroup</h3>
-                {{ write_library_list(libs) }}
-                {{ lib.name }}
-              {% endfor %}#}
+              <h2>List of the libraries</h2>
 
-
+              {% if group.libraries | selectattr('subgroup', 'none') | list | length > 0 %}
+                {% if group.subgroups | length > 0 %}
                 <h3><a name="sg-{{ nosubgroup }}"></a>Without subgroup</h3>
+                {% endif %}
                 {{ write_library_list(group.libraries | selectattr('subgroup', 'none') )}}
-              {#% endif %#}
+              {% endif %}
               {% for subgroup in group.subgroups |sort(attribute='name') %}
-                <h3><a name="sg-{{ subgroup.name }}"></a>{{ subgroup.name }}</h3>
+                <h3><a name="sg-{{ subgroup.name }}"></a>{{ subgroup.fancyname }}</h3>
                 <p> {{ subgroup.description }}</p>
                 {{ write_library_list(subgroup.libraries) }}
               {% endfor %}
@@ -126,14 +110,20 @@
           </div>
           <div class="nav_list">
             <ul>
-              <li>Frameworks
+              <li>
                 <ul>
-                  {% for tier, _ in framework_lst|groupby('tier') %}
-                    <li><a href="#fw-tier{{tier}}">Tier {{ tier }}</a></li>
+                  {% if group.libraries | selectattr('subgroup', 'none') | list | length > 0 %}
+                    {% if group.subgroups | length > 0 %}
+                    <li><a href="#sg-{{ nosubgroup }}">Without subgroups</a></li>
+                    {% else  %}
+                    <li><a href="#content">All</a></li>
+                    {% endif %}
+                  {% endif %}
+                  {% for subgroup in group.subgroups | sort(attribute='name') %}
+                    <li><a href="#sg-{{ subgroup.name }}">{{ subgroup.fancyname }}</a></li>
                   {% endfor %}
                 </ul>
               </li>
-              <li><a href="#porting-aids">Porting Aids</a></li>
             </ul>
           </div>
         </div>

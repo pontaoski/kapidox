@@ -35,6 +35,7 @@ import logging
 import codecs
 import os
 import shutil
+import string
 import subprocess
 import tempfile
 
@@ -52,9 +53,11 @@ except ImportError:
 PLATFORM_ALL = "All"
 PLATFORM_UNKNOWN = "UNKNOWN"
 
-
 def serialize_name(name):
-    return '_'.join(name.lower().split(' '))
+    if name is not None:
+        return '_'.join(name.lower().split(' '))
+    else:
+        return None
 
 def create_metainfo(frameworksdir, path):
     if not os.path.isdir(path):
@@ -80,15 +83,15 @@ def create_metainfo(frameworksdir, path):
         logging.warning('Subgroup but no group in {}, skipping it'.format(path))
         return None
 
-    modulename = path.split('/')[-1]
+    name = path.split('/')[-1]
     fancyname = utils.parse_fancyname(path)
     if not fancyname:
         logging.warning('Could not find fancy name for {}, skipping it'.format(path))
         return None
 
     metainfo.update({
-        'name': fancyname,
-        'modulename': modulename,
+        'fancyname': fancyname,
+        'name': name,
         'public_lib': metainfo.get('public_lib', False),
         'dependency_diagram': None,
         'path': path,
@@ -101,6 +104,7 @@ def sort_metainfo(metalist, all_maintainers):
     products = []
     groups = []
     libraries = []
+    available_platforms = set(['Windows', 'MacOSX', 'Linux'])
 
     for metainfo in metalist:
         outputdir = metainfo.get('name')
@@ -108,13 +112,26 @@ def sort_metainfo(metalist, all_maintainers):
             outputdir = metainfo.get('group') + '/' + outputdir
         outputdir = serialize_name(outputdir)
 
+        try:
+            platform_info = metainfo.get('platforms', [PLATFORM_UNKNOWN])
+            #platform_info = metainfo['platforms']
+            platform_lst = [x['name'] for x in platform_info if x['name'] not in (PLATFORM_ALL, PLATFORM_UNKNOWN)]
+            available_platforms.update(set(platform_lst))
+        except (KeyError, TypeError):
+            logging.warning('{} framework lacks valid platform definitions'.format(metainfo['fancyname']))
+            platforms = [dict(name=PLATFORM_UNKNOWN)]
+            
+        dct = dict((x['name'], x.get('note', '')) for x in metainfo['platforms'])
+        expand_platform_all(dct, available_platforms)
+        platforms = dct
+
         lib = {
             'name': metainfo['name'],
-            'modulename': metainfo['modulename'],
+            'fancyname': metainfo['fancyname'],
             'description': metainfo.get('description'),
             'maintainers': set_maintainers(metainfo, 'maintainer', all_maintainers),
-            'platform': metainfo.get('platform', []),
-            'parent': {'group': metainfo.get('group'), 'subgroup': metainfo.get('subgroup')},
+            'platforms': platforms,
+            'parent': {'group': serialize_name(metainfo.get('group')), 'subgroup': serialize_name(metainfo.get('subgroup'))},
             'href': '../'+outputdir.lower() + '/html/index.html',
             'outputdir': outputdir.lower(),
             'path':  metainfo['path'],
@@ -133,6 +150,8 @@ def sort_metainfo(metalist, all_maintainers):
         # if there is a group, the product is the group
         # else the product is directly the library
         if 'group_info' in metainfo:
+
+            # take care of the logo
             if 'logo' in metainfo['group_info']:
                 logo_url = os.path.join(metainfo['path'], metainfo['group_info']['logo'])
                 if not os.path.isfile(logo_url):
@@ -140,24 +159,27 @@ def sort_metainfo(metalist, all_maintainers):
                     logging.warning("{} logo file doesn't exist, set back to None".format(metainfo['group']))
                     logo_url = None
             else: 
-                logo_url = None
+                logo_url = None                
+                
             product = {
-                'name': metainfo['group'],
+                'name': serialize_name(metainfo['group']),
+                'fancyname': metainfo['group_info'].get('fancyname', string.capwords(metainfo['group'])),
                 'description': metainfo['group_info'].get('description'),
                 'long_description': metainfo['group_info'].get('long_description', []),
                 'maintainers': set_maintainers(metainfo['group_info'], 'maintainer', all_maintainers),
                 'platform': metainfo['group_info'].get('platform'),
                 'logo_url': logo_url,
-                'href': metainfo['group'].lower()+'/index.html',
+                'href': serialize_name(metainfo['group']) + '/index.html',
                 'outputdir': serialize_name(metainfo['group']),
                 'libraries': []
             }
-            subgroups = []#{'name': None, 'description': None, 'libraries': [] }]
+            subgroups = []
             if 'subgroups' in metainfo['group_info']:
                 for sg in metainfo['group_info']['subgroups']:
                     if 'name' in sg:
                         subgroups.append({
-                            'name': sg['name'],
+                            'fancyname': sg['name'],
+                            'name': serialize_name(sg['name']),
                             'description': sg.get('description'),
                             'libraries': []
                         })
@@ -165,16 +187,18 @@ def sort_metainfo(metalist, all_maintainers):
             products.append(product)
         elif 'group' not in metainfo:
             products.append({
-                'name': metainfo['name'],
+                'name': serialize_name(metainfo['name']),
+                'fancyname': metainfo['fancyname'],
                 'description': metainfo.get('description'),
                 'maintainers': set_maintainers(metainfo, 'maintainer', all_maintainers),
                 'platform': metainfo.get('platform'),
                 'logo_url': metainfo.get('logo'),
-                'href': metainfo['name'].lower()+'/html/index.html',
-                'outputdir': metainfo['name'].lower()
+                'href': metainfo['name']+'/html/index.html',
+                'outputdir': metainfo['name']
             })
 
     # We have all groups and libraries, let set the parents.
+    # and check the platforms
     for lib in libraries:
         if lib['parent'].get('group') is not None:
             product = [x for x in products if x['name'].lower() == lib['parent']['group'].lower()][0]
@@ -183,28 +207,39 @@ def sort_metainfo(metalist, all_maintainers):
             if lib['parent'].get('subgroup') is None:
                 lib['subgroup'] = None
             else:
-                subgroup = [x for x in lib['product']['subgroups'] if x['name'].lower() == lib['parent']['subgroup'].lower()][0]
-                lib['subgroup'] = subgroup
-                subgroup['libraries'].append(lib)
+                subgroup_list = [x for x in lib['product']['subgroups'] if x['name'].lower() == lib['parent']['subgroup'].lower()]
+                if not subgroup_list:
+                    logging.warning("Subgroup {} of library {} not documentated, setting subgroup to None"
+                                    .format(lib['parent']['subgroup'], lib['name']))
+                    lib['subgroup'] = None
+                    lib['parent'] = None
+                else: 
+                    subgroup = subgroup_list[0]
+                    lib['subgroup'] = subgroup
+                    subgroup['libraries'].append(lib)
         else:
             lib['parent'] = None
+                    
         groups.append(product)
-
-    return products, groups, libraries
+  
+    print(available_platforms)
+    return products, groups, libraries, available_platforms
 
 def expand_platform_all(dct, available_platforms):
     """If one of the keys of dct is PLATFORM_ALL (or PLATFORM_UNKNOWN), remove it and add entries for all available platforms to dct"""
     add_all_platforms = False
     if PLATFORM_ALL in dct:
+        note = dct[PLATFORM_ALL]
         add_all_platforms = True
         del dct[PLATFORM_ALL]
     if PLATFORM_UNKNOWN in dct:
         add_all_platforms = True
+        note = dct[PLATFORM_UNKNOWN]
         del dct[PLATFORM_UNKNOWN]
     if add_all_platforms:
         for platform in available_platforms:
             if not platform in dct:
-                dct[platform] = ''
+                dct[platform] = note
 
 
 def process_toplevel_html_file(outputfile, doxdatadir, products, title,
@@ -232,7 +267,7 @@ def process_toplevel_html_file(outputfile, doxdatadir, products, title,
     with codecs.open(outputfile, 'w', 'utf-8') as outf:
         outf.write(tmpl.render(mapping))
 
-def process_subgroup_html_files(outputfile, doxdatadir, groups, title,
+def process_subgroup_html_files(outputfile, doxdatadir, groups, available_platforms, title,
                                 api_searchbox=False):
 
     for group in groups:
@@ -251,15 +286,17 @@ def process_subgroup_html_files(outputfile, doxdatadir, groups, title,
                     },
                     {
                         'href': './index.html',
-                        'text': group['name']
+                        'text': group['fancyname']
                     }
                     ]
                 },
             'group': group,
+            'available_platforms': sorted(available_platforms),
         }
-        if not os.path.isdir(group['name'].lower()):
-            os.mkdir(group['name'].lower())
-        outputfile = group['name'].lower()+'/index.html'
+
+        if not os.path.isdir(group['name']):
+            os.mkdir(group['name'])
+        outputfile = group['name']+'/index.html'
         tmpl = generator.create_jinja_environment(doxdatadir).get_template('subgroup.html')
         with codecs.open(outputfile, 'w', 'utf-8') as outf:
             outf.write(tmpl.render(mapping))
@@ -330,8 +367,8 @@ def set_maintainers(dictionary, key, maintainers):
 def create_fw_context(args, lib, tagfiles):
     return generator.Context(args,
                             # Names
-                            modulename=lib['modulename'],
-                            fancyname=lib['name'],
+                            modulename=lib['name'],
+                            fancyname=lib['fancyname'],
                             fwinfo=lib,
                             # KApidox files
                             resourcedir='../..' if lib['parent'] is None else '../../..',
@@ -363,7 +400,7 @@ def finish_fw_apidocs(ctx, group_menu):
         entries[0]['href'] = '../' + entries[0]['href']
         entries.append({
             'href': '../../index.html',
-            'text': ctx.fwinfo['product']['name']
+            'text': ctx.fwinfo['product']['fancyname']
             })
     entries.append({
         'href': 'index.html',
@@ -400,7 +437,7 @@ def create_fw_tagfile_tuple(lib):
                 os.path.join(
                     lib['outputdir'],
                     'html',
-                    lib['name']+'.tags'))
+                    lib['fancyname']+'.tags'))
     return (tagfile, '../../' + lib['outputdir'] + '/html/')
 
 
@@ -451,15 +488,16 @@ def main():
             if metainfo['public_lib']:
                 metalist.append(metainfo)
             else:
-                logging.warning("{} has no public libraries".format(metainfo['modulename']))
-    products, groups, libraries = sort_metainfo(metalist, maintainers)
+                logging.warning("{} has no public libraries".format(metainfo['name']))
+    products, groups, libraries, available_platforms = sort_metainfo(metalist, maintainers)
     generator.copy_dir_contents(os.path.join(args.doxdatadir,'htmlresource'),'.')
     #group_menu = generate_group_menu(metalist)
 
     process_toplevel_html_file('index.html', args.doxdatadir,
             title=args.title, products=products, api_searchbox=args.api_searchbox)
     process_subgroup_html_files('index.html', args.doxdatadir,
-            title=args.title, groups=groups, api_searchbox=args.api_searchbox)
+            title=args.title, groups=groups, available_platforms=available_platforms,
+            api_searchbox=args.api_searchbox)
     tmp_dir = tempfile.mkdtemp(prefix='kgenframeworksapidox-')
 
     try:
@@ -468,7 +506,7 @@ def main():
             assert(dot_files)
 
         for lib in libraries:
-            logging.info('# Generating doc for {}'.format(lib['name']))
+            logging.info('# Generating doc for {}'.format(lib['fancyname']))
             if args.depdiagram_dot_dir:
                 png_path = os.path.join(tmp_dir, lib['name']) + '.png'
                 ok = generate_diagram(png_path, lib['name'], dot_files, tmp_dir)

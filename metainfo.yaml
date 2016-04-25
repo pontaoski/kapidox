@@ -16,6 +16,7 @@ public_source_dirs:
     - src
 
 group_info:
+    fancyname: The KDE Frameworks
     maintainer: dfaure
     description: Providing everything from simple utility classes to integrated solutions for common requirements of desktop applications
     logo: konqi_frameworks.png

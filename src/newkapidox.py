@@ -101,6 +101,19 @@ def create_metainfo(frameworksdir, path):
 
 
 def sort_metainfo(metalist, all_maintainers):
+
+    def get_logo_url(dct, name):
+        # take care of the logo
+        if 'logo' in dct:
+            logo_url = os.path.join(metainfo['path'], dct['logo'])
+            if os.path.isfile(logo_url):
+                return logo_url
+            else:
+                logging.warning("{} logo file doesn't exist, set back to None".format(name))
+                return None
+        else:
+            return None
+
     products = []
     groups = []
     libraries = []
@@ -150,16 +163,6 @@ def sort_metainfo(metalist, all_maintainers):
         # if there is a group, the product is the group
         # else the product is directly the library
         if 'group_info' in metainfo:
-
-            # take care of the logo
-            if 'logo' in metainfo['group_info']:
-                logo_url = os.path.join(metainfo['path'], metainfo['group_info']['logo'])
-                if not os.path.isfile(logo_url):
-                    print(logo_url)
-                    logging.warning("{} logo file doesn't exist, set back to None".format(metainfo['group']))
-                    logo_url = None
-            else: 
-                logo_url = None                
                 
             product = {
                 'name': serialize_name(metainfo['group']),
@@ -168,7 +171,7 @@ def sort_metainfo(metalist, all_maintainers):
                 'long_description': metainfo['group_info'].get('long_description', []),
                 'maintainers': set_maintainers(metainfo['group_info'], 'maintainer', all_maintainers),
                 'platforms': metainfo['group_info'].get('platforms'),
-                'logo_url': logo_url,
+                'logo_url': get_logo_url(metainfo['group_info'], metainfo['group']),
                 'href': serialize_name(metainfo['group']) + '/index.html',
                 'outputdir': serialize_name(metainfo['group']),
                 'libraries': []
@@ -192,7 +195,7 @@ def sort_metainfo(metalist, all_maintainers):
                 'description': metainfo.get('description'),
                 'maintainers': set_maintainers(metainfo, 'maintainer', all_maintainers),
                 'platform': metainfo.get('platform'),
-                'logo_url': metainfo.get('logo'),
+                'logo_url': get_logo_url(metainfo, metainfo['fancyname']),
                 'href': metainfo['name']+'/html/index.html',
                 'outputdir': metainfo['name']
             })

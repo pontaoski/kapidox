@@ -18,6 +18,10 @@ public_source_dirs:
 group_info:
     fancyname: The KDE Frameworks
     maintainer: dfaure
+    platforms:
+      - Linux
+      - Windows (partial)
+      - MacOSX (partial)
     description: Providing everything from simple utility classes to integrated solutions for common requirements of desktop applications
     logo: konqi_frameworks.png
     long_description:

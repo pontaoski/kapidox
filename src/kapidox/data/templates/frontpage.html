@@ -30,23 +30,27 @@
                 {% endfor %}
               </div>
               <h2>List of our products</h2>
+                <table class="products">
               {% for product in product_list | sort(attribute='name')%}
-                <div class="product" style="margin-bottom:30px;height:80px;">
-                  <div class="product-logo" style="float:left;">
+                <tr class="product">
+                  <td class="product-logo">
                     <img src="{% if product.logo_url %} {{ product.logo_url }} {% else %}{{resources}}/default_product.png{% endif %}" width="80px" />
-                  </div>
-                  <div class="product-descr" style="margin-left:80px">
-                    <ul>
-                      <li><a name="prod-{{ product.name }}" href="{{ product.href }}">{{ product.fancyname }}</a></li>
+                  </td>
+                  <td class="product-descr">
+                    <ul class="list-unstyled">
+                      <li class=product-name><a name="prod-{{ product.name }}" href="{{ product.href }}">{{ product.fancyname }}</a></li>
                       <li>{{ product.description }}</li>
-                      <li class="prod-maintainer">{% include "maintainers.html" %}</li>
-                      <li>{{ product.plateform }}</li>
+                      <li class="prod-maintainers">{% include "maintainers.html" %}</li>
+                    {% if product.platforms %}
+                      <li class="prod-platforms">{{ product.platforms | join(' | ') }}</li>
+                    {% endif %}
                        <!--<li>?? avaliable versions vX.X | vY.Y</li> -->
                     </ul>
-                  </div>
-                </div>
+                  </td>
+                </tr>
               {% endfor %}
-            </div>
+              </table>
+              </div>
 
 {% endblock content %}
 
@@ -66,7 +70,8 @@
         </div>
 
         <div class="menu_box">
-          <div class="menutitle">
+
+{#          <div class="menutitle">
             <div>
               <h2>Filters</h2>
             </div>
@@ -88,14 +93,16 @@
                   {% endfor %}
                 </ul>
               </li>
-{#              <li>
+#}
+{#
+              <li>
                 <label>
                   <input id="showMaintainers" type="checkbox">Show maintainers
                 </label>
               </li>
 #}
-            </ul>
+{#            </ul>
           </div>
         </div>
-
+#}
 {% endblock %} {# sidebar #}

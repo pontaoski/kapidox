@@ -167,7 +167,7 @@ def sort_metainfo(metalist, all_maintainers):
                 'description': metainfo['group_info'].get('description'),
                 'long_description': metainfo['group_info'].get('long_description', []),
                 'maintainers': set_maintainers(metainfo['group_info'], 'maintainer', all_maintainers),
-                'platform': metainfo['group_info'].get('platform'),
+                'platforms': metainfo['group_info'].get('platforms'),
                 'logo_url': logo_url,
                 'href': serialize_name(metainfo['group']) + '/index.html',
                 'outputdir': serialize_name(metainfo['group']),
@@ -222,7 +222,6 @@ def sort_metainfo(metalist, all_maintainers):
                     
         groups.append(product)
   
-    print(available_platforms)
     return products, groups, libraries, available_platforms
 
 def expand_platform_all(dct, available_platforms):

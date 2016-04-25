@@ -33,7 +33,7 @@
               {% for product in product_list | sort(attribute='name')%}
                 <div class="product" style="margin-bottom:30px;height:80px;">
                   <div class="product-logo" style="float:left;">
-                    <img src="{% if product.logo %} product.logo {% else %}{{resources}}/default_product.png{% endif %}" width="80px" />
+                    <img src="{% if product.logo_url %} {{ product.logo_url }} {% else %}{{resources}}/default_product.png{% endif %}" width="80px" />
                   </div>
                   <div class="product-descr" style="margin-left:80px">
                     <ul>

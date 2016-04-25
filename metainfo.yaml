@@ -9,14 +9,16 @@ portingAid: false
 deprecated: false
 release: true
 
-group: frameworks
-subgroup: tier 1
+group: Frameworks
+subgroup: Tier 1
+public_lib: true
 public_source_dirs:
     - src
 
 group_info:
     maintainer: dfaure
     description: Providing everything from simple utility classes to integrated solutions for common requirements of desktop applications
+    logo: konqi_frameworks.png
     long_description:
         - The KDE Frameworks build on the <a href="http://qt-project.org">Qt
           framework</a>, providing everything from simple utility classes (such as

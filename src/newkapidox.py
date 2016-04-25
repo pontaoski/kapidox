@@ -55,7 +55,7 @@ PLATFORM_UNKNOWN = "UNKNOWN"
 
 def serialize_name(name):
     return '_'.join(name.lower().split(' '))
-    
+
 def create_metainfo(frameworksdir, path):
     if not os.path.isdir(path):
         return None
@@ -75,7 +75,7 @@ def create_metainfo(frameworksdir, path):
     if metainfo is None:
         logging.warning('Empty metainfo.yml for {}, skipping it'.format(path))
         return None
-      
+
     if 'subgroup' in metainfo and 'group' not in metainfo:
         logging.warning('Subgroup but no group in {}, skipping it'.format(path))
         return None
@@ -89,24 +89,25 @@ def create_metainfo(frameworksdir, path):
     metainfo.update({
         'name': fancyname,
         'modulename': modulename,
+        'public_lib': metainfo.get('public_lib', False),
         'dependency_diagram': None,
         'path': path,
         })
-        
+
     return metainfo
-    
+
 
 def sort_metainfo(metalist, all_maintainers):
     products = []
     groups = []
     libraries = []
-    
+
     for metainfo in metalist:
-        outputdir = metainfo.get('name')        
+        outputdir = metainfo.get('name')
         if 'group' in metainfo:
             outputdir = metainfo.get('group') + '/' + outputdir
         outputdir = serialize_name(outputdir)
-        
+
         lib = {
             'name': metainfo['name'],
             'modulename': metainfo['modulename'],
@@ -116,7 +117,10 @@ def sort_metainfo(metalist, all_maintainers):
             'parent': {'group': metainfo.get('group'), 'subgroup': metainfo.get('subgroup')},
             'href': '../'+outputdir.lower() + '/html/index.html',
             'outputdir': outputdir.lower(),
-            'srcdir':  metainfo['path']+'/' + metainfo.get('srcdir', 'src'),
+            'path':  metainfo['path'],
+            'srcdirs':  metainfo.get('public_source_dirs', ['src']),
+            'docdir':  metainfo.get('public_doc_dir', 'docs'),
+            'exampledir':  metainfo.get('public_example_dir', 'examples'),
             'dependency_diagram': None,
             'type': metainfo.get('type', ''),
             'portingAid': metainfo.get('portingAid', False),
@@ -129,13 +133,21 @@ def sort_metainfo(metalist, all_maintainers):
         # if there is a group, the product is the group
         # else the product is directly the library
         if 'group_info' in metainfo:
+            if 'logo' in metainfo['group_info']:
+                logo_url = os.path.join(metainfo['path'], metainfo['group_info']['logo'])
+                if not os.path.isfile(logo_url):
+                    print(logo_url)
+                    logging.warning("{} logo file doesn't exist, set back to None".format(metainfo['group']))
+                    logo_url = None
+            else: 
+                logo_url = None
             product = {
                 'name': metainfo['group'],
                 'description': metainfo['group_info'].get('description'),
                 'long_description': metainfo['group_info'].get('long_description', []),
                 'maintainers': set_maintainers(metainfo['group_info'], 'maintainer', all_maintainers),
                 'platform': metainfo['group_info'].get('platform'),
-                'logo_url': metainfo['group_info'].get('logo'),
+                'logo_url': logo_url,
                 'href': metainfo['group'].lower()+'/index.html',
                 'outputdir': serialize_name(metainfo['group']),
                 'libraries': []
@@ -176,10 +188,10 @@ def sort_metainfo(metalist, all_maintainers):
                 subgroup['libraries'].append(lib)
         else:
             lib['parent'] = None
-        groups.append(product)   
-                    
+        groups.append(product)
+
     return products, groups, libraries
-  
+
 def expand_platform_all(dct, available_platforms):
     """If one of the keys of dct is PLATFORM_ALL (or PLATFORM_UNKNOWN), remove it and add entries for all available platforms to dct"""
     add_all_platforms = False
@@ -220,9 +232,9 @@ def process_toplevel_html_file(outputfile, doxdatadir, products, title,
     with codecs.open(outputfile, 'w', 'utf-8') as outf:
         outf.write(tmpl.render(mapping))
 
-def process_subgroup_html_files(outputfile, doxdatadir, groups, title, 
+def process_subgroup_html_files(outputfile, doxdatadir, groups, title,
                                 api_searchbox=False):
-        
+
     for group in groups:
         mapping = {
             'resources': '..',
@@ -245,9 +257,9 @@ def process_subgroup_html_files(outputfile, doxdatadir, groups, title,
                 },
             'group': group,
         }
-        if not os.path.isdir(group['name']):
-            os.mkdir(group['name'])
-        outputfile = group['name']+'/index.html'
+        if not os.path.isdir(group['name'].lower()):
+            os.mkdir(group['name'].lower())
+        outputfile = group['name'].lower()+'/index.html'
         tmpl = generator.create_jinja_environment(doxdatadir).get_template('subgroup.html')
         with codecs.open(outputfile, 'w', 'utf-8') as outf:
             outf.write(tmpl.render(mapping))
@@ -313,8 +325,8 @@ def set_maintainers(dictionary, key, maintainers):
 
     fw_maintainers = [x for x in fw_maintainers if x is not None]
     return fw_maintainers
-    
-    
+
+
 def create_fw_context(args, lib, tagfiles):
     return generator.Context(args,
                             # Names
@@ -324,7 +336,7 @@ def create_fw_context(args, lib, tagfiles):
                             # KApidox files
                             resourcedir='../..' if lib['parent'] is None else '../../..',
                             # Input
-                            srcdir=lib['srcdir']+'/..',
+                            #srcdir=lib['srcdir'],
                             tagfiles=tagfiles,
                             dependency_diagram=lib['dependency_diagram'],
                             # Output
@@ -342,7 +354,7 @@ def gen_fw_apidocs(ctx, tmp_base_dir):
 def finish_fw_apidocs(ctx, group_menu):
     classmap = generator.build_classmap(ctx.tagfile)
     generator.write_mapping_to_php(classmap, os.path.join(ctx.outputdir, 'classmap.inc'))
-    
+
     entries = [{
         'href': '../../index.html',
         'text': 'KDE API Reference'
@@ -436,11 +448,14 @@ def main():
         dirs[:] = [d for d in dirs if not d[0] == '.']
         metainfo = create_metainfo(args.frameworksdir, path)
         if metainfo is not None:
-            metalist.append(metainfo)
+            if metainfo['public_lib']:
+                metalist.append(metainfo)
+            else:
+                logging.warning("{} has no public libraries".format(metainfo['modulename']))
     products, groups, libraries = sort_metainfo(metalist, maintainers)
     generator.copy_dir_contents(os.path.join(args.doxdatadir,'htmlresource'),'.')
     #group_menu = generate_group_menu(metalist)
-    
+
     process_toplevel_html_file('index.html', args.doxdatadir,
             title=args.title, products=products, api_searchbox=args.api_searchbox)
     process_subgroup_html_files('index.html', args.doxdatadir,
@@ -460,7 +475,6 @@ def main():
                 if ok:
                     lib['dependency_diagram'] = png_path
             ctx = create_fw_context(args, lib, tagfiles)
-            print(ctx.srcdir)
             gen_fw_apidocs(ctx, tmp_dir)
             tagfiles.append(create_fw_tagfile_tuple(lib))
         # Rebuild for interdependencies

@@ -5,7 +5,7 @@ The fancyname is the project name used in CMake.
 Each group must contain one and only one library with the `group_info` block. If
 more are defined, the behavior is unknown.
 
-Be sure to to set `public_lib` to true, or the library will be ignored. Most of
+**Be sure to to set `public_lib` to true, or the library will be ignored.** Most of
 the other keys are optionals. See below for a simplier example.
 
 ## All possible keys.
@@ -69,6 +69,7 @@ there is no logo, a default one is used.
 ```yaml
 description: Library doing X
 maintainer: ochurlaud
+public_lib: true
 logo: libX.png
 ```
 
@@ -81,6 +82,7 @@ source is in `src`.
 ```yaml
 description: Library doing X
 maintainer: ochurlaud
+public_lib: true
 platforms:
   - name: Linux
   - name: Windows
@@ -104,6 +106,7 @@ group_info:
 ```yaml
 description: Library doing Y
 maintainer: otherrandomguy
+public_lib: true
 platforms:
   - name: Linux
 group: XY

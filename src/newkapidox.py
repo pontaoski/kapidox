@@ -126,15 +126,16 @@ def sort_metainfo(metalist, all_maintainers):
         outputdir = serialize_name(outputdir)
 
         try:
-            platform_info = metainfo.get('platforms', [PLATFORM_UNKNOWN])
+            platforms = metainfo['platforms']
             #platform_info = metainfo['platforms']
-            platform_lst = [x['name'] for x in platform_info if x['name'] not in (PLATFORM_ALL, PLATFORM_UNKNOWN)]
+            platform_lst = [x['name'] for x in platforms if x['name'] not in (PLATFORM_ALL, PLATFORM_UNKNOWN)]
             available_platforms.update(set(platform_lst))
         except (KeyError, TypeError):
             logging.warning('{} framework lacks valid platform definitions'.format(metainfo['fancyname']))
             platforms = [dict(name=PLATFORM_UNKNOWN)]
-            
-        dct = dict((x['name'], x.get('note', '')) for x in metainfo['platforms'])
+
+        dct = dict((x['name'], x.get('note', '')) for x in platforms)
+
         expand_platform_all(dct, available_platforms)
         platforms = dct
 
@@ -163,7 +164,7 @@ def sort_metainfo(metalist, all_maintainers):
         # if there is a group, the product is the group
         # else the product is directly the library
         if 'group_info' in metainfo:
-                
+
             product = {
                 'name': serialize_name(metainfo['group']),
                 'fancyname': metainfo['group_info'].get('fancyname', string.capwords(metainfo['group'])),
@@ -216,15 +217,15 @@ def sort_metainfo(metalist, all_maintainers):
                                     .format(lib['parent']['subgroup'], lib['name']))
                     lib['subgroup'] = None
                     lib['parent'] = None
-                else: 
+                else:
                     subgroup = subgroup_list[0]
                     lib['subgroup'] = subgroup
                     subgroup['libraries'].append(lib)
         else:
             lib['parent'] = None
-                    
+
         groups.append(product)
-  
+
     return products, groups, libraries, available_platforms
 
 def expand_platform_all(dct, available_platforms):

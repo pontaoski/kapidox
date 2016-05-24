@@ -36,17 +36,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 
 from fnmatch import fnmatch
-try:
-    from urllib.parse import urljoin
-except ImportError:
-    from urlparse import urljoin
-try:
-    from urllib.request import urlretrieve
-except ImportError:
-    from urllib import urlretrieve
+
 
 import jinja2
 
@@ -58,7 +50,6 @@ __all__ = (
     "copy_dir_contents",
     "generate_apidocs",
     "search_for_tagfiles",
-    "download_kde_identities",
     "WARN_LOGFILE",
     "build_classmap",
     "postprocess",
@@ -317,46 +308,6 @@ def svn_export(remote, local, overwrite = False):
     os.utime(local, None)
     return True
 
-def download_kde_identities():
-    """Download the "accounts" file on the KDE SVN repository in order to get
-       the KDE identities with their name and e-mail address
-    """
-    cache_file = os.path.join(cache_dir(), 'kde-accounts')
-    needs_download = True
-    if os.path.exists(cache_file):
-        logging.debug("Found cached identities file at %s", cache_file)
-        # not quite a day, so that generation on api.kde.org gets a fresh
-        # copy every time the daily cron job runs it
-        yesterday = time.time() - (23.5 * 3600)
-        if os.path.getmtime(cache_file) > yesterday:
-            needs_download = False
-        else:
-            logging.debug("Cached file too old; updating")
-    if needs_download:
-        logging.info("Downloading KDE identities")
-        try:
-            if not svn_export('svn://anonsvn.kde.org/home/kde/trunk/kde-common/accounts',
-                              cache_file,
-                              overwrite=True):
-                logging.debug("Falling back to using websvn to fetch identities file")
-                urlretrieve('http://websvn.kde.org/*checkout*/trunk/kde-common/accounts',
-                            cache_file)
-        except Exception as e:
-            if os.path.exists(cache_file):
-                logging.error('Failed to update KDE identities: %s', e)
-            else:
-                logging.error('Failed to fetch KDE identities: %s', e)
-                return None
-
-    maintainers = {}
-
-    with codecs.open(cache_file, 'r', encoding='utf8') as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 3:
-                maintainers[parts[0]] = {'name': ' '.join(parts[1:-1]), 'email': parts[-1]}
-
-    return maintainers
 
 def copy_dir_contents(directory, dest):
     """Copy the contents of a directory

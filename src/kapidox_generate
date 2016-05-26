@@ -56,7 +56,6 @@ except ImportError:
     DEPDIAGRAM_AVAILABLE = False
 
 
-
 def process_toplevel_html_file(outputfile, doxdatadir, products, title,
         api_searchbox=False):
 

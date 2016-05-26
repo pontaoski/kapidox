@@ -277,6 +277,7 @@ def extract_product(metainfo, platforms, all_maintainers):
                             'fancyname': sg['name'],
                             'name': kdx.utils.serialize_name(sg['name']),
                             'description': sg.get('description'),
+                            'order': sg.get('order', 99),  # If no order, go to end
                             'libraries': []
                             })
         set_logo(product)

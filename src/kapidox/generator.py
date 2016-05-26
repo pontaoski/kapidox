@@ -34,20 +34,27 @@ import os
 import logging
 import shutil
 import subprocess
-import sys
 import tempfile
-
-from fnmatch import fnmatch
-
+import sys
 
 import jinja2
 
+if sys.version_info.major < 3:
+    from urlparse import urljoin
+else:
+    from urllib.parse import urljoin
+
 from kapidox import utils
+try:
+    from kapidox import depdiagram
+    DEPDIAGRAM_AVAILABLE = True
+except ImportError:
+    DEPDIAGRAM_AVAILABLE = False
+
 from .doxyfilewriter import DoxyfileWriter
 
 __all__ = (
     "Context",
-    "copy_dir_contents",
     "generate_apidocs",
     "search_for_tagfiles",
     "WARN_LOGFILE",
@@ -118,6 +125,73 @@ def create_jinja_environment(doxdatadir):
     return jinja2.Environment(loader=loader)
 
 
+def process_toplevel_html_file(outputfile, doxdatadir, products, title,
+                               api_searchbox=False):
+
+    products.sort(key=lambda x: x['name'].lower())
+    mapping = {
+            'resources': '.',
+            'api_searchbox': api_searchbox,
+            # steal the doxygen css from one of the frameworks
+            # this means that all the doxygen-provided images etc. will be found
+            'doxygencss': products[0]['outputdir'] + '/html/doxygen.css',
+            'title': title,
+            'breadcrumbs': {
+                'entries': [
+                    {
+                        'href': './index.html',
+                        'text': 'KDE API Reference'
+                    }
+                    ]
+                },
+            'product_list': products,
+        }
+    tmpl = create_jinja_environment(doxdatadir).get_template('frontpage.html')
+    with codecs.open(outputfile, 'w', 'utf-8') as outf:
+        outf.write(tmpl.render(mapping))
+        for product in products:
+            if product['logo_url'] is not None:
+                logodir = os.path.dirname(product['logo_url'])
+                if not os.path.isdir(logodir):
+                    os.mkdir(logodir)
+                shutil.copy(product['logo_url_src'], product['logo_url'])
+
+
+def process_subgroup_html_files(outputfile, doxdatadir, groups, available_platforms, title,
+                                api_searchbox=False):
+
+    for group in groups:
+        mapping = {
+            'resources': '..',
+            'api_searchbox': api_searchbox,
+            # steal the doxygen css from one of the frameworks
+            # this means that all the doxygen-provided images etc. will be found
+            'doxygencss': group['libraries'][0]['outputdir'] + '/html/doxygen.css',
+            'title': title,
+            'breadcrumbs': {
+                'entries': [
+                    {
+                        'href': '../index.html',
+                        'text': 'KDE API Reference'
+                    },
+                    {
+                        'href': './index.html',
+                        'text': group['fancyname']
+                    }
+                    ]
+                },
+            'group': group,
+            'available_platforms': sorted(available_platforms),
+        }
+
+        if not os.path.isdir(group['name']):
+            os.mkdir(group['name'])
+        outputfile = group['name']+'/index.html'
+        tmpl = create_jinja_environment(doxdatadir).get_template('subgroup.html')
+        with codecs.open(outputfile, 'w', 'utf-8') as outf:
+            outf.write(tmpl.render(mapping))
+
+
 def create_dirs(ctx):
     ctx.htmldir = os.path.join(ctx.outputdir, HTML_SUBDIR)
     ctx.tagfile = os.path.join(ctx.htmldir, ctx.modulename + '.tags')
@@ -145,19 +219,6 @@ def load_template(path):
         raise
 
 
-def smartjoin(pathorurl1,*args):
-    """Join paths or URLS
-
-    It figures out which it is from whether the first contains a "://"
-    """
-    if '://' in pathorurl1:
-        if not pathorurl1.endswith('/'):
-            pathorurl1 += '/'
-        return urljoin(pathorurl1,*args)
-    else:
-        return os.path.join(pathorurl1,*args)
-
-
 def find_tagfiles(docdir, doclink=None, flattenlinks=False, exclude=None, _depth=0):
     """Find Doxygen-generated tag files in a directory
 
@@ -183,11 +244,23 @@ def find_tagfiles(docdir, doclink=None, flattenlinks=False, exclude=None, _depth
         doclink = docdir
         flattenlinks = False
 
+    def smartjoin(pathorurl1, *args):
+        """Join paths or URLS
+
+        It figures out which it is from whether the first contains a "://"
+        """
+        if '://' in pathorurl1:
+            if not pathorurl1.endswith('/'):
+                pathorurl1 += '/'
+            return urljoin(pathorurl1, *args)
+        else:
+            return os.path.join(pathorurl1, *args)
+
     def nestedlink(subdir):
         if flattenlinks:
             return doclink
         else:
-            return smartjoin(doclink,subdir)
+            return smartjoin(doclink, subdir)
 
     tagfiles = []
 
@@ -195,15 +268,17 @@ def find_tagfiles(docdir, doclink=None, flattenlinks=False, exclude=None, _depth
     for e in entries:
         if e == exclude:
             continue
-        path = os.path.join(docdir,e)
+        path = os.path.join(docdir, e)
         if os.path.isfile(path) and e.endswith('.tags'):
-            tagfiles.append((path,doclink))
+            tagfiles.append((path, doclink))
         elif (_depth == 0 or (_depth == 1 and e == 'html')) and os.path.isdir(path):
             tagfiles += find_tagfiles(path, nestedlink(e),
-                          flattenlinks=flattenlinks, _depth=_depth+1,
-                          exclude=exclude)
+                                      flattenlinks=flattenlinks,
+                                      _depth=_depth+1,
+                                      exclude=exclude)
 
     return tagfiles
+
 
 def search_for_tagfiles(suggestion=None, doclink=None, flattenlinks=False, searchpaths=[], exclude=None):
     """Find Doxygen-generated tag files
@@ -245,93 +320,6 @@ def search_for_tagfiles(suggestion=None, doclink=None, flattenlinks=False, searc
 
     return []
 
-def cache_dir():
-    """Find/create a semi-long-term cache directory.
-
-    We do not use tempdir, except as a fallback, because temporary directories
-    are intended for files that only last for the program's execution.
-    """
-    cachedir = None
-    if sys.platform == 'darwin':
-        try:
-            from AppKit import NSSearchPathForDirectoriesInDomains
-            # http://developer.apple.com/DOCUMENTATION/Cocoa/Reference/Foundation/Miscellaneous/Foundation_Functions/Reference/reference.html#//apple_ref/c/func/NSSearchPathForDirectoriesInDomains
-            # NSApplicationSupportDirectory = 14
-            # NSUserDomainMask = 1
-            # True for expanding the tilde into a fully qualified path
-            cachedir = os.path.join(
-                    NSSearchPathForDirectoriesInDomains(14, 1, True)[0],
-                    'KApiDox')
-        except:
-            pass
-    elif os.name == "posix":
-        if 'HOME' in os.environ and os.path.exists(os.environ['HOME']):
-            cachedir = os.path.join(os.environ['HOME'], '.cache', 'kapidox')
-    elif os.name == "nt":
-        if 'APPDATA' in os.environ and os.path.exists(os.environ['APPDATA']):
-            cachedir = os.path.join(os.environ['APPDATA'], 'KApiDox')
-    if cachedir is None:
-        cachedir = os.path.join(tempfile.gettempdir(), 'kapidox')
-    if not os.path.isdir(cachedir):
-        os.makedirs(cachedir)
-    return cachedir
-
-def svn_export(remote, local, overwrite = False):
-    """Wraps svn export.
-
-    Raises an exception on failure.
-    """
-    try:
-        import svn.core, svn.client
-        logging.debug("Using Python libsvn bindings to fetch %s", remote)
-        ctx = svn.client.create_context()
-        ctx.auth_baton = svn.core.svn_auth_open([])
-
-        latest = svn.core.svn_opt_revision_t()
-        latest.type = svn.core.svn_opt_revision_head
-
-        svn.client.export(remote, local, latest, True, ctx)
-    except ImportError:
-        logging.debug("Using external svn client to fetch %s", remote)
-        cmd = ['svn', 'export', '--quiet']
-        if overwrite:
-            cmd.append('--force')
-        cmd += [remote, local]
-        try:
-            subprocess.check_call(cmd, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as e:
-            raise StandardException(e.output)
-        except FileNotFoundError as e:
-            logging.debug("External svn client not found")
-            return False
-    # subversion will set the timestamp to match the server
-    os.utime(local, None)
-    return True
-
-
-def copy_dir_contents(directory, dest):
-    """Copy the contents of a directory
-
-    directory -- the directory to copy the contents of
-    dest      -- the directory to copy them into
-    """
-    ignored = ['CMakeLists.txt']
-    ignore = shutil.ignore_patterns(*ignored)
-    for fn in os.listdir(directory):
-        f = os.path.join(directory,fn)
-        if os.path.isfile(f):
-            docopy = True
-            for i in ignored:
-                if fnmatch(fn,i):
-                    docopy = False
-                    break
-            if docopy:
-                shutil.copy(f,dest)
-        elif os.path.isdir(f):
-            dest_f = os.path.join(dest,fn)
-            if os.path.isdir(dest_f):
-                shutil.rmtree(dest_f)
-            shutil.copytree(f, dest_f, ignore=ignore)
 
 
 def menu_items(htmldir, modulename):
@@ -460,6 +448,7 @@ def postprocess_internal(htmldir, tmpl, mapping):
             os.remove(path)
             os.rename(newpath, path)
 
+
 def build_classmap(tagfile):
     """Parses a tagfile to get a map from classes to files
 
@@ -480,6 +469,7 @@ def build_classmap(tagfile):
                             'filename': filename_el.text})
     return mapping
 
+
 def write_mapping_to_php(mapping, outputfile, varname='map'):
     """Write a mapping out as PHP code
 
@@ -494,7 +484,7 @@ def write_mapping_to_php(mapping, outputfile, varname='map'):
     varname    -- override the PHP variable name (defaults to 'map')
     """
     logging.info('Generating PHP mapping')
-    with codecs.open(outputfile,'w','utf-8') as f:
+    with codecs.open(outputfile, 'w', 'utf-8') as f:
         f.write('<?php $' + varname + ' = array(')
         first = True
         for entry in mapping:
@@ -504,6 +494,7 @@ def write_mapping_to_php(mapping, outputfile, varname='map'):
                 f.write(',')
             f.write("'" + entry['classname'] + "' => '" + entry['filename'] + "'")
         f.write(') ?>')
+
 
 def generate_dependencies_page(tmp_dir, doxdatadir, modulename, dependency_diagram):
     """Create `modulename`-dependencies.md in `tmp_dir`"""
@@ -517,6 +508,7 @@ def generate_dependencies_page(tmp_dir, doxdatadir, modulename, dependency_diagr
                 })
         outf.write(txt)
     return out_path
+
 
 def generate_apidocs(ctx, tmp_dir, doxyfile_entries=None, keep_temp_dirs=False):
     """Generate the API documentation for a single directory"""
@@ -543,13 +535,17 @@ def generate_apidocs(ctx, tmp_dir, doxyfile_entries=None, keep_temp_dirs=False):
     image_path_list = []
 
     if ctx.dependency_diagram:
-        input_list.append(generate_dependencies_page(tmp_dir, ctx.doxdatadir, ctx.modulename, ctx.dependency_diagram))
+        input_list.append(generate_dependencies_page(tmp_dir,
+                                                     ctx.doxdatadir,
+                                                     ctx.modulename,
+                                                     ctx.dependency_diagram))
         image_path_list.append(ctx.dependency_diagram)
 
     doxyfile_path = os.path.join(tmp_dir, 'Doxyfile')
     with codecs.open(doxyfile_path, 'w', 'utf-8') as doxyfile:
         # Global defaults
-        with codecs.open(os.path.join(ctx.doxdatadir,'Doxyfile.global'), 'r', 'utf-8') as f:
+        with codecs.open(os.path.join(ctx.doxdatadir, 'Doxyfile.global'),
+                         'r', 'utf-8') as f:
             for line in f:
                 doxyfile.write(line)
 
@@ -609,6 +605,7 @@ def generate_apidocs(ctx, tmp_dir, doxyfile_entries=None, keep_temp_dirs=False):
 
 
 def postprocess(ctx, classmap, template_mapping=None):
+    # TODO: copyright must be set from outside
     copyright = '1996-' + str(datetime.date.today().year) + ' The KDE developers'
     mapping = {
             'doxygencss': 'doxygen.css',
@@ -627,3 +624,125 @@ def postprocess(ctx, classmap, template_mapping=None):
 
     tmpl = create_jinja_environment(ctx.doxdatadir).get_template('doxygen.html')
     postprocess_internal(ctx.htmldir, tmpl, mapping)
+
+
+def generate_diagram(png_path, fancyname, dot_files, tmp_dir):
+    """Generate a dependency diagram for a framework.
+    """
+    def run_cmd(cmd, **kwargs):
+        try:
+            subprocess.check_call(cmd, **kwargs)
+        except subprocess.CalledProcessError as exc:
+            logging.error('Command {exc.cmd} failed with error code {}.'
+                          .format(exc.returncode))
+            return False
+        return True
+
+    logging.info('Generating dependency diagram')
+    dot_path = os.path.join(tmp_dir, fancyname + '.dot')
+
+    with open(dot_path, 'w') as f:
+        with_qt = False
+        ok = depdiagram.generate(f, dot_files, framework=fancyname,
+                                 with_qt=with_qt)
+        if not ok:
+            logging.error('Generating diagram failed')
+            return False
+
+    logging.info('- Simplifying diagram')
+    simplified_dot_path = os.path.join(tmp_dir, fancyname + '-simplified.dot')
+    with open(simplified_dot_path, 'w') as f:
+        if not run_cmd(['tred', dot_path], stdout=f):
+            return False
+
+    logging.info('- Generating diagram png')
+    if not run_cmd(['dot', '-Tpng', '-o' + png_path, simplified_dot_path]):
+        return False
+
+    # These os.unlink() calls are not in a 'finally' block on purpose.
+    # Keeping the dot files around makes it possible to inspect their content
+    # when running with the --keep-temp-dirs option. If generation fails and
+    # --keep-temp-dirs is not set, the files will be removed when the program
+    # ends because they were created in `tmp_dir`.
+    os.unlink(dot_path)
+    os.unlink(simplified_dot_path)
+    return True
+
+
+def create_fw_context(args, lib, tagfiles):
+    return Context(args,
+                   # Names
+                   modulename=lib['name'],
+                   fancyname=lib['fancyname'],
+                   fwinfo=lib,
+                   # KApidox files
+                   resourcedir='../..' if lib['parent'] is None else '../../..',
+                   # Input
+                   #srcdir=lib['srcdir'],
+                   tagfiles=tagfiles,
+                   dependency_diagram=lib['dependency_diagram'],
+                   # Output
+                   outputdir=lib['outputdir'],
+                   )
+
+
+def gen_fw_apidocs(ctx, tmp_base_dir):
+    create_dirs(ctx)
+    # tmp_dir is deleted when tmp_base_dir is
+    tmp_dir = tempfile.mkdtemp(prefix=ctx.modulename + '-', dir=tmp_base_dir)
+    generate_apidocs(ctx, tmp_dir,
+                     doxyfile_entries=dict(WARN_IF_UNDOCUMENTED=True)
+                     )
+
+
+def finish_fw_apidocs(ctx, group_menu):
+    classmap = build_classmap(ctx.tagfile)
+    write_mapping_to_php(classmap, os.path.join(ctx.outputdir, 'classmap.inc'))
+
+    entries = [{
+        'href': '../../index.html',
+        'text': 'KDE API Reference'
+        }]
+    if ctx.fwinfo['parent'] is not None:
+        entries[0]['href'] = '../' + entries[0]['href']
+        entries.append({
+            'href': '../../index.html',
+            'text': ctx.fwinfo['product']['fancyname']
+            })
+    entries.append({
+        'href': 'index.html',
+        'text': ctx.fancyname
+        })
+
+    template_mapping = {
+                'breadcrumbs': {
+                    'entries': entries
+                    },
+                }
+    copyright = '1996-' + str(datetime.date.today().year) + ' The KDE developers'
+    mapping = {
+            'doxygencss': 'doxygen.css',
+            'resources': ctx.resourcedir,
+            'title': ctx.title,
+            'fwinfo': ctx.fwinfo,
+            'copyright': copyright,
+            'api_searchbox': ctx.api_searchbox,
+            'doxygen_menu': {'entries': menu_items(ctx.htmldir, ctx.modulename)},
+            'class_map': {'classes': classmap},
+            'kapidox_version': utils.get_kapidox_version(),
+        }
+    if template_mapping:
+        mapping.update(template_mapping)
+    logging.info('Postprocessing')
+
+    tmpl = create_jinja_environment(ctx.doxdatadir).get_template('doxygen2.html')
+    postprocess_internal(ctx.htmldir, tmpl, mapping)
+
+
+def create_fw_tagfile_tuple(lib):
+    tagfile = os.path.abspath(
+                os.path.join(
+                    lib['outputdir'],
+                    'html',
+                    lib['fancyname']+'.tags'))
+    return (tagfile, '../../' + lib['outputdir'] + '/html/')

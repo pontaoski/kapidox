@@ -29,21 +29,17 @@
 # Python 2/3 compatibility (NB: we require at least 2.7)
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-import datetime
 import logging
 import codecs
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
 
 if sys.version_info.major < 3:
-    from urlparse import urljoin
     from urllib import urlretrieve
 else:
-    from urllib.parse import urljoin
     from urllib.request import urlretrieve
 
 import kapidox as kdx
@@ -56,70 +52,6 @@ except ImportError:
     DEPDIAGRAM_AVAILABLE = False
 
 
-def process_toplevel_html_file(outputfile, doxdatadir, products, title,
-        api_searchbox=False):
-
-    products.sort(key=lambda x: x['name'].lower())
-    mapping = {
-            'resources': '.',
-            'api_searchbox': api_searchbox,
-            # steal the doxygen css from one of the frameworks
-            # this means that all the doxygen-provided images etc. will be found
-            'doxygencss': products[0]['outputdir'] + '/html/doxygen.css',
-            'title': title,
-            'breadcrumbs': {
-                'entries': [
-                    {
-                        'href': './index.html',
-                        'text': 'KDE API Reference'
-                    }
-                    ]
-                },
-            'product_list': products,
-        }
-    tmpl = generator.create_jinja_environment(doxdatadir).get_template('frontpage.html')
-    with codecs.open(outputfile, 'w', 'utf-8') as outf:
-        outf.write(tmpl.render(mapping))
-        for product in products:
-            if product['logo_url'] is not None:
-                logodir = os.path.dirname(product['logo_url'])
-                if not os.path.isdir(logodir):
-                    os.mkdir(logodir)
-                shutil.copy(product['logo_url_src'], product['logo_url'])
-
-def process_subgroup_html_files(outputfile, doxdatadir, groups, available_platforms, title,
-                                api_searchbox=False):
-
-    for group in groups:
-        mapping = {
-            'resources': '..',
-            'api_searchbox': api_searchbox,
-            # steal the doxygen css from one of the frameworks
-            # this means that all the doxygen-provided images etc. will be found
-            'doxygencss': group['libraries'][0]['outputdir'] + '/html/doxygen.css',
-            'title': title,
-            'breadcrumbs': {
-                'entries': [
-                    {
-                        'href': '../index.html',
-                        'text': 'KDE API Reference'
-                    },
-                    {
-                        'href': './index.html',
-                        'text': group['fancyname']
-                    }
-                    ]
-                },
-            'group': group,
-            'available_platforms': sorted(available_platforms),
-        }
-
-        if not os.path.isdir(group['name']):
-            os.mkdir(group['name'])
-        outputfile = group['name']+'/index.html'
-        tmpl = generator.create_jinja_environment(doxdatadir).get_template('subgroup.html')
-        with codecs.open(outputfile, 'w', 'utf-8') as outf:
-            outf.write(tmpl.render(mapping))
 
 def find_dot_files(dot_dir):
     """Returns a list of path to files ending with .dot in subdirs of `dot_dir`."""
@@ -127,128 +59,6 @@ def find_dot_files(dot_dir):
     for (root, dirs, files) in os.walk(dot_dir):
         lst.extend([os.path.join(root, x) for x in files if x.endswith('.dot')])
     return lst
-
-
-def generate_diagram(png_path, fancyname, dot_files, tmp_dir):
-    """Generate a dependency diagram for a framework.
-    """
-    def run_cmd(cmd, **kwargs):
-        try:
-            subprocess.check_call(cmd, **kwargs)
-        except subprocess.CalledProcessError as exc:
-            logging.error(
-                    'Command {exc.cmd} failed with error code {exc.returncode}.'.format(exc=exc))
-            return False
-        return True
-
-    logging.info('Generating dependency diagram')
-    dot_path = os.path.join(tmp_dir, fancyname + '.dot')
-
-    with open(dot_path, 'w') as f:
-        with_qt = False
-        ok = depdiagram.generate(f, dot_files, framework=fancyname, with_qt=with_qt)
-        if not ok:
-            logging.error('Generating diagram failed')
-            return False
-
-    logging.info('- Simplifying diagram')
-    simplified_dot_path = os.path.join(tmp_dir, fancyname + '-simplified.dot')
-    with open(simplified_dot_path, 'w') as f:
-        if not run_cmd(['tred', dot_path], stdout=f):
-            return False
-
-    logging.info('- Generating diagram png')
-    if not run_cmd(['dot', '-Tpng', '-o' + png_path, simplified_dot_path]):
-        return False
-
-    # These os.unlink() calls are not in a 'finally' block on purpose.
-    # Keeping the dot files around makes it possible to inspect their content
-    # when running with the --keep-temp-dirs option. If generation fails and
-    # --keep-temp-dirs is not set, the files will be removed when the program
-    # ends because they were created in `tmp_dir`.
-    os.unlink(dot_path)
-    os.unlink(simplified_dot_path)
-    return True
-
-
-def create_fw_context(args, lib, tagfiles):
-    return generator.Context(args,
-                            # Names
-                            modulename=lib['name'],
-                            fancyname=lib['fancyname'],
-                            fwinfo=lib,
-                            # KApidox files
-                            resourcedir='../..' if lib['parent'] is None else '../../..',
-                            # Input
-                            #srcdir=lib['srcdir'],
-                            tagfiles=tagfiles,
-                            dependency_diagram=lib['dependency_diagram'],
-                            # Output
-                            outputdir=lib['outputdir'],
-                            )
-
-
-def gen_fw_apidocs(ctx, tmp_base_dir):
-    generator.create_dirs(ctx)
-    # tmp_dir is deleted when tmp_base_dir is
-    tmp_dir = tempfile.mkdtemp(prefix=ctx.modulename + '-', dir=tmp_base_dir)
-    generator.generate_apidocs(ctx, tmp_dir,
-            doxyfile_entries=dict(WARN_IF_UNDOCUMENTED=True)
-            )
-
-
-def finish_fw_apidocs(ctx, group_menu):
-    classmap = generator.build_classmap(ctx.tagfile)
-    generator.write_mapping_to_php(classmap, os.path.join(ctx.outputdir, 'classmap.inc'))
-
-    entries = [{
-        'href': '../../index.html',
-        'text': 'KDE API Reference'
-        }]
-    if ctx.fwinfo['parent'] is not None:
-        entries[0]['href'] = '../' + entries[0]['href']
-        entries.append({
-            'href': '../../index.html',
-            'text': ctx.fwinfo['product']['fancyname']
-            })
-    entries.append({
-        'href': 'index.html',
-        'text': ctx.fancyname
-        })
-
-    template_mapping={
-                'breadcrumbs': {
-                    'entries': entries
-                    },
-                #'group_menu': group_menu
-                }
-    copyright = '1996-' + str(datetime.date.today().year) + ' The KDE developers'
-    mapping = {
-            'doxygencss': 'doxygen.css',
-            'resources': ctx.resourcedir,
-            'title': ctx.title,
-            'fwinfo': ctx.fwinfo,
-            'copyright': copyright,
-            'api_searchbox': ctx.api_searchbox,
-            'doxygen_menu': {'entries': generator.menu_items(ctx.htmldir, ctx.modulename)},
-            'class_map': {'classes': classmap},
-            'kapidox_version': kdx.utils.get_kapidox_version(),
-        }
-    if template_mapping:
-        mapping.update(template_mapping)
-    logging.info('Postprocessing')
-
-    tmpl = generator.create_jinja_environment(ctx.doxdatadir).get_template('doxygen2.html')
-    generator.postprocess_internal(ctx.htmldir, tmpl, mapping)
-
-
-def create_fw_tagfile_tuple(lib):
-    tagfile = os.path.abspath(
-                os.path.join(
-                    lib['outputdir'],
-                    'html',
-                    lib['fancyname']+'.tags'))
-    return (tagfile, '../../' + lib['outputdir'] + '/html/')
 
 
 def download_kde_identities():
@@ -314,15 +124,15 @@ def main():
     metalist = kdx.preprocessing.parse_tree(rootdir)
     products, groups, libraries, available_platforms = kdx.preprocessing.sort_metainfo(metalist, maintainers)
 
-    generator.copy_dir_contents(os.path.join(args.doxdatadir,'htmlresource'),'.')
+    kdx.utils.copy_dir_contents(os.path.join(args.doxdatadir,'htmlresource'),'.')
 
-    process_toplevel_html_file('index.html',
+    kdx.generator.process_toplevel_html_file('index.html',
                                args.doxdatadir,
                                title=args.title,
                                products=products,
                                api_searchbox=args.api_searchbox
                                )
-    process_subgroup_html_files('index.html',
+    kdx.generator.process_subgroup_html_files('index.html',
                                 args.doxdatadir,
                                 title=args.title,
                                 groups=groups,
@@ -340,13 +150,13 @@ def main():
             logging.info('# Generating doc for {}'.format(lib['fancyname']))
             if args.depdiagram_dot_dir:
                 png_path = os.path.join(tmp_dir, lib['name']) + '.png'
-                ok = generate_diagram(png_path, lib['name'],
+                ok = kdx.generator.generate_diagram(png_path, lib['name'],
                                       dot_files, tmp_dir)
                 if ok:
                     lib['dependency_diagram'] = png_path
-            ctx = create_fw_context(args, lib, tagfiles)
-            gen_fw_apidocs(ctx, tmp_dir)
-            tagfiles.append(create_fw_tagfile_tuple(lib))
+            ctx = kdx.generator.create_fw_context(args, lib, tagfiles)
+            kdx.generator.gen_fw_apidocs(ctx, tmp_dir)
+            tagfiles.append(kdx.generator.create_fw_tagfile_tuple(lib))
 
         # Rebuild for interdependencies
         # FIXME: can we be cleverer about deps?
@@ -354,9 +164,9 @@ def main():
             logging.info('# Rebuilding {} for interdependencies'
                          .format(lib['name']))
             shutil.rmtree(lib['outputdir'])
-            ctx = create_fw_context(args, lib, tagfiles)
-            gen_fw_apidocs(ctx, tmp_dir)
-            finish_fw_apidocs(ctx, None)
+            ctx = kdx.generator.create_fw_context(args, lib, tagfiles)
+            kdx.generator.gen_fw_apidocs(ctx, tmp_dir)
+            kdx.generator.finish_fw_apidocs(ctx, None)
         logging.info('# Done')
     finally:
         if args.keep_temp_dirs:

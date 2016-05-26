@@ -26,10 +26,13 @@
 # Python 2/3 compatibility (NB: we require at least 2.7)
 from __future__ import division, absolute_import, print_function, unicode_literals
 
+
+from fnmatch import fnmatch
 import logging
 import os
 import re
 import subprocess
+import shutil
 import sys
 import tempfile
 
@@ -69,7 +72,8 @@ def parse_fancyname(fw_dir):
             match = project_re.search(line)
             if match:
                 return match.group(1)
-    logging.error("Failed to find framework name: Could not find a 'project()' command in {}.".format(cmakelists_path))
+    logging.error("Failed to find framework name: Could not find a "
+                  "'project()' command in {}.".format(cmakelists_path))
     return None
 
 
@@ -111,7 +115,8 @@ def svn_export(remote, local, overwrite=False):
     Raises an exception on failure.
     """
     try:
-        import svn.core, svn.client
+        import svn.core
+        import svn.client
         logging.debug("Using Python libsvn bindings to fetch %s", remote)
         ctx = svn.client.create_context()
         ctx.auth_baton = svn.core.svn_auth_open([])
@@ -136,6 +141,31 @@ def svn_export(remote, local, overwrite=False):
     # subversion will set the timestamp to match the server
     os.utime(local, None)
     return True
+
+
+def copy_dir_contents(directory, dest):
+    """Copy the contents of a directory
+
+    directory -- the directory to copy the contents of
+    dest      -- the directory to copy them into
+    """
+    ignored = ['CMakeLists.txt']
+    ignore = shutil.ignore_patterns(*ignored)
+    for fn in os.listdir(directory):
+        f = os.path.join(directory, fn)
+        if os.path.isfile(f):
+            docopy = True
+            for i in ignored:
+                if fnmatch(fn, i):
+                    docopy = False
+                    break
+            if docopy:
+                shutil.copy(f, dest)
+        elif os.path.isdir(f):
+            dest_f = os.path.join(dest, fn)
+            if os.path.isdir(dest_f):
+                shutil.rmtree(dest_f)
+            shutil.copytree(f, dest_f, ignore=ignore)
 
 
 _KAPIDOX_VERSION = None

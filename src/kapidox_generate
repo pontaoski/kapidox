@@ -188,6 +188,7 @@ def create_fw_context(args, lib, tagfiles):
                             outputdir=lib['outputdir'],
                             )
 
+
 def gen_fw_apidocs(ctx, tmp_base_dir):
     generator.create_dirs(ctx)
     # tmp_dir is deleted when tmp_base_dir is
@@ -195,6 +196,7 @@ def gen_fw_apidocs(ctx, tmp_base_dir):
     generator.generate_apidocs(ctx, tmp_dir,
             doxyfile_entries=dict(WARN_IF_UNDOCUMENTED=True)
             )
+
 
 def finish_fw_apidocs(ctx, group_menu):
     classmap = generator.build_classmap(ctx.tagfile)
@@ -231,7 +233,7 @@ def finish_fw_apidocs(ctx, group_menu):
             'api_searchbox': ctx.api_searchbox,
             'doxygen_menu': {'entries': generator.menu_items(ctx.htmldir, ctx.modulename)},
             'class_map': {'classes': classmap},
-            'kapidox_version': utils.get_kapidox_version(),
+            'kapidox_version': kdx.utils.get_kapidox_version(),
         }
     if template_mapping:
         mapping.update(template_mapping)
